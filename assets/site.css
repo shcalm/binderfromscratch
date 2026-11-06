@@ -1,0 +1,14 @@
+.md-typeset { font-size: .82rem; }
+.md-typeset h1 { font-size: 1.8em; }
+.md-typeset h2 { font-size: 1.45em; }
+.md-typeset :is(h1,h2,h3,h4) { letter-spacing: 0; overflow-wrap: anywhere; }
+.md-typeset :is(p,li,td,th,a) { overflow-wrap: anywhere; }
+.md-typeset pre { max-width: 100%; }
+.md-typeset .mermaid { overflow: auto; }
+.md-typeset .mermaid svg { max-width: none; }
+.md-header__topic { transition: none; }
+@media print {
+  .md-typeset .md-typeset__scrollwrap { overflow: visible; }
+  .md-typeset table:not([class]) { display: table; width: 100%; }
+  .md-typeset pre > code { white-space: pre-wrap; overflow-wrap: anywhere; }
+}

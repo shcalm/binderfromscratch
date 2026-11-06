@@ -1,0 +1,20 @@
+{
+  "mermaid-11.4.1.min.js": {
+    "url": "https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js",
+    "sha256": "a43bc1afd446f9c4cc66ac5dd45d02e8d65e26fc5344ec0ef787f88d6ddb6f9e",
+    "license": "MIT"
+  },
+  "MERMAID-LICENSE.txt": {
+    "url": "https://cdn.jsdelivr.net/npm/mermaid@11.4.1/LICENSE",
+    "sha256": "ec9fb67dcb25eccc416ed56e1aab819222c805a2a4bfe4cb19e7556bf2ffde80"
+  },
+  "mathjax-3.2.2-tex-svg.js": {
+    "url": "https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-svg.js",
+    "sha256": "d4295dc33744836935c1399feece5159577b34c5c8ffb9f1c6324cd82e03a882",
+    "license": "Apache-2.0"
+  },
+  "MATHJAX-LICENSE.txt": {
+    "url": "https://cdn.jsdelivr.net/npm/mathjax@3.2.2/LICENSE",
+    "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+  }
+}

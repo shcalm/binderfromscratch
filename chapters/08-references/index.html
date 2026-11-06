@@ -1,0 +1,2539 @@
+
+<!doctype html>
+<html lang="zh" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="从问题、方案与实验推导教学 IPC 驱动">
+      
+      
+      
+        <link rel="canonical" href="https://shcalm.github.io/binderfromscratch/chapters/08-references/">
+      
+      
+        <link rel="prev" href="../07-nodes/">
+      
+      
+        <link rel="next" href="../../routes/part-3/">
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.20">
+    
+    
+      
+        <title>08 Ref 与对象转交 - 从零设计 Binder</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.e53b48f4.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.06af60db.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/site.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+  </head>
+  
+  
+    
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="teal" data-md-color-accent="deep-orange">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#08" class="md-skip">
+          跳转至
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="页眉">
+    <a href="../.." title="从零设计 Binder" class="md-header__button md-logo" aria-label="从零设计 Binder" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            从零设计 Binder
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              08 Ref 与对象转交
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+    
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="搜索" placeholder="搜索" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="查找">
+        
+        <button type="reset" class="md-search__icon md-icon" title="清空当前内容" aria-label="清空当前内容" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            正在初始化搜索引擎
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/shcalm/binderfromscratch" title="前往仓库" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.0.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    shcalm/binderfromscratch
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="导航栏" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="从零设计 Binder" class="md-nav__button md-logo" aria-label="从零设计 Binder" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    从零设计 Binder
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/shcalm/binderfromscratch" title="前往仓库" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.0.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    shcalm/binderfromscratch
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    阅读入口
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    预备篇 · 初稿
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            预备篇 · 初稿
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../p01-process/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    P01 从 main.c 到 Linux 进程
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../p02-syscalls/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    P02 从函数调用到系统调用
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../p03-module/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    P03 第一个 Linux 内核模块
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../p04-environment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    P04 搭建 Linux 内核实验环境
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    第一篇 · 同步 RPC · 初稿
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            第一篇 · 同步 RPC · 初稿
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../01-why-binder/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    01 为什么需要 Binder
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../02-character-device/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    02 设计第一个字符设备驱动
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../03-sync-rpc/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    03 实现第一个同步 RPC
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    第二篇 · 数据与事务 · 开发中
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            第二篇 · 数据与事务 · 开发中
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../04-mmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    04 mmap 接收映射
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../05-parcel/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    05 Parcel 请求
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../06-transactions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    06 Transaction 与双向缓冲
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    第三篇 · 对象与服务 · 开发中
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            第三篇 · 对象与服务 · 开发中
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../07-nodes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    07 Node 对象身份
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    08 Ref 与对象转交
+    
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    08 Ref 与对象转交
+    
+  </span>
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="目录">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      目录
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1-handle" class="md-nav__link">
+    <span class="md-ellipsis">
+      1. 复制 Handle，甚至可能“成功”地调用错对象
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-ref" class="md-nav__link">
+    <span class="md-ellipsis">
+      2. 先比较方案，再引入 Ref
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-c" class="md-nav__link">
+    <span class="md-ellipsis">
+      3. 用普通 C 先看见转换
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4" class="md-nav__link">
+    <span class="md-ellipsis">
+      4. 内核知识补给：查表、持有和接收区
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5" class="md-nav__link">
+    <span class="md-ellipsis">
+      5. 三种转换，而不是复制描述符
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-c-serverb" class="md-nav__link">
+    <span class="md-ellipsis">
+      6. C 不是 Server，B 如何把引用交给它
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7-ref-node" class="md-nav__link">
+    <span class="md-ellipsis">
+      7. 两种 Ref 单位与五类 Node 持有
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8" class="md-nav__link">
+    <span class="md-ellipsis">
+      8. 为什么必须逐项记账并反向回滚
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#9" class="md-nav__link">
+    <span class="md-ellipsis">
+      9. 代码从哪些边界增加能力
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#10" class="md-nav__link">
+    <span class="md-ellipsis">
+      10. 在虚拟机里验收完整关系
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#11-android-binder" class="md-nav__link">
+    <span class="md-ellipsis">
+      11. 回到真实 Android Binder
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#12" class="md-nav__link">
+    <span class="md-ellipsis">
+      12. 验收问题
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../routes/part-3/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    09 章路线与任务
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    第四篇 · 线程与生命周期 · 未完成
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            第四篇 · 线程与生命周期 · 未完成
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../routes/part-4/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    10–12 章路线与任务
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    第五篇 · 安全与稳定性 · 未完成
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            第五篇 · 安全与稳定性 · 未完成
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../routes/part-5/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    13–15 章路线与任务
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    第六篇 · 真实 Binder · 未完成
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_8">
+            <span class="md-nav__icon md-icon"></span>
+            第六篇 · 真实 Binder · 未完成
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../routes/part-6/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    16–18 章路线与任务
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9" >
+        
+          
+          <label class="md-nav__link" for="__nav_9" id="__nav_9_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    实验与代码
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_9_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_9">
+            <span class="md-nav__icon md-icon"></span>
+            实验与代码
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../labs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    实验入口
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../labs/intro-boundaries/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    进程与 RPC 边界
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../labs/syscalls/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    系统调用
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../labs/queue-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    请求队列模型
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../labs/mapping-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    接收映射模型
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../labs/parcel-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Parcel 编解码模型
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../labs/transaction-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    事务状态与资源模型
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../labs/node-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Node 身份与持有模型
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../labs/reference-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Ref 与转换回滚模型
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/code-versions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    代码版本索引
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../source/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    源码阅读
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_10" >
+        
+          
+          <label class="md-nav__link" for="__nav_10" id="__nav_10_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    参考与进度
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_10">
+            <span class="md-nav__icon md-icon"></span>
+            参考与进度
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/glossary/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    术语表
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/android-binder/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Android 源码基线
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/aosp-userspace/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    AOSP 用户态基线
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../design/scope/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    范围声明
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../design/teaching-contract/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    教学规范
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../design/device-abi/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    字符设备 ABI
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../design/minimal-rpc/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    同步 RPC 设计
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../design/receive-region/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    接收区设计
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../design/parcel-format/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Parcel 格式设计
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../design/transactions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    事务与双向缓冲设计
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../design/nodes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Node 对象身份设计
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../design/references/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Ref 与对象转换设计
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../plans/roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    全书路线
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../plans/task-backlog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    任务总表
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../plans/phase-01/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    第一阶段计划
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reports/m0-m1-progress/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    阶段实测报告
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reports/m2-mapping-progress/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    第 04 章映射实测报告
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reports/m2-parcel-progress/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    第 05 章 Parcel 实测报告
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reports/m2-transactions-progress/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    第 06 章事务实测报告
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reports/m3-nodes-progress/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    第 07 章 Node 实测报告
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reports/m3-references-progress/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    第 08 章 Ref 实测报告
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/changes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    修订与勘误
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../site-guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    本地构建与预览
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="目录">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      目录
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1-handle" class="md-nav__link">
+    <span class="md-ellipsis">
+      1. 复制 Handle，甚至可能“成功”地调用错对象
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-ref" class="md-nav__link">
+    <span class="md-ellipsis">
+      2. 先比较方案，再引入 Ref
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-c" class="md-nav__link">
+    <span class="md-ellipsis">
+      3. 用普通 C 先看见转换
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4" class="md-nav__link">
+    <span class="md-ellipsis">
+      4. 内核知识补给：查表、持有和接收区
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5" class="md-nav__link">
+    <span class="md-ellipsis">
+      5. 三种转换，而不是复制描述符
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-c-serverb" class="md-nav__link">
+    <span class="md-ellipsis">
+      6. C 不是 Server，B 如何把引用交给它
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7-ref-node" class="md-nav__link">
+    <span class="md-ellipsis">
+      7. 两种 Ref 单位与五类 Node 持有
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8" class="md-nav__link">
+    <span class="md-ellipsis">
+      8. 为什么必须逐项记账并反向回滚
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#9" class="md-nav__link">
+    <span class="md-ellipsis">
+      9. 代码从哪些边界增加能力
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#10" class="md-nav__link">
+    <span class="md-ellipsis">
+      10. 在虚拟机里验收完整关系
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#11-android-binder" class="md-nav__link">
+    <span class="md-ellipsis">
+      11. 回到真实 Android Binder
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#12" class="md-nav__link">
+    <span class="md-ellipsis">
+      12. 验收问题
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="08">第 08 章｜把引用交给另一个进程，而不是复制一个整数<a class="headerlink" href="#08" title="Permanent link">&para;</a></h1>
+<blockquote>
+<p><strong>章节状态：开发初稿，尚未正式发布。</strong> 实验与验收边界见本章和阶段报告。</p>
+</blockquote>
+<p>第 07 章用 Node 区分两个 counter 的状态，用事务 ID 区分每一次调用。但 Client 仍直接使用可猜的全局 Node ID。现在增加一个要求：B 只能使用 A 授予的对象，B 可以把已有对象交给 C；C 不能仅靠猜 Node ID 获得对象。</p>
+<p>本章从一个会调用错对象的实验出发，推导进程私有 Ref 表、描述符转换和两种引用单位。<a href="../../design/references/">规范</a>规定精确 ABI、错误优先级和资源归属；<a href="../../labs/reference-model/">模型实验</a>展示对象图；<a href="../../reports/m3-references-progress/">实测报告</a>区分已运行证据与限制。沿用 Linux v6.6，AOSP 用户态只做固定版本源码对照。mini 仍是教学协议，不兼容 libbinder。</p>
+<h2 id="1-handle">1. 复制 Handle，甚至可能“成功”地调用错对象<a class="headerlink" href="#1-handle" title="Permanent link">&para;</a></h2>
+<p>让 A 发布 X、Y 两个 counter。初始 X=0、Y=100，各自的方法 1 都是 increment。B 先获得 X，再获得 Y；C 只获得 Y。每个接收者分配自己的最小空闲正编号：</p>
+<table>
+<thead>
+<tr>
+<th>打开上下文</th>
+<th>Handle 1</th>
+<th>Handle 2</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>B</td>
+<td>X</td>
+<td>Y</td>
+</tr>
+<tr>
+<td>C</td>
+<td>Y</td>
+<td>不存在</td>
+</tr>
+</tbody>
+</table>
+<p>B 通过 pipe 把整数 1 给 C。如果 C 用自己的 <code>CALL_REF(target=1)</code> 调用，A 会对 Y 加一，返回 101；没有类型错误，也没有系统调用失败，但业务对象错了。把 B 的整数 2 给 C，则得到 EBADF。</p>
+<p>这不是需要为整数加上一个全局前缀的编码问题。若将全局 Node ID 开放给所有人导入，C 又能绕过 B 的授予自行获取 X。私有 Handle 既是本地寻址，也代表内核已经为这个接收者建立的引用关系。整数只有放回所属表中才有含义。</p>
+<h2 id="2-ref">2. 先比较方案，再引入 Ref<a class="headerlink" href="#2-ref" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>方案</th>
+<th>能做到什么</th>
+<th>代价或不足</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>沿用全局 Node ID</td>
+<td>简单地访问多个对象</td>
+<td>名字可猜；没有“谁曾向谁授予”的关系。</td>
+</tr>
+<tr>
+<td>为每次分享发秘密 token</td>
+<td>可以构造 bearer capability</td>
+<td>还需秘密生成、泄漏、撤销和重放约定；不是本章选择。</td>
+</tr>
+<tr>
+<td>内核维护每个接收者的 Ref 表</td>
+<td>本地 Handle 解析到稳定 Node，支持定向转交和回收</td>
+<td>必须转换描述符，维护计数、失败回滚和死亡对象。</td>
+</tr>
+</tbody>
+</table>
+<p>本章选择第三种。每个 <code>(打开上下文, Node)</code> 最多一条 Ref，包含 Handle、<code>user_refs</code> 和 <code>buffer_refs</code>。Handle 从 1 开始，可在旧条目完全回收后复用。它不含 generation；一个陈旧整数可能在稍后指向新对象，用户态必须遵守自己的持有期限。</p>
+<p>这里的“私有”精确到打开上下文。一个进程两次 open 有两张表；dup 共享同一打开文件对象。继承别的进程打开的 fd 仍受既有 TGID 检查，不允许借此冒用原上下文。不能把这个教学边界直接说成完整的 Android proc/thread 模型。</p>
+<h2 id="3-c">3. 用普通 C 先看见转换<a class="headerlink" href="#3-c" title="Permanent link">&para;</a></h2>
+<p>无需设备或 root：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>make<span class="w"> </span>build/references
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>./build/references<span class="w"> </span>raw
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>./build/references<span class="w"> </span>transfer
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>python3<span class="w"> </span>-m<span class="w"> </span>unittest<span class="w"> </span>discover<span class="w"> </span>-s<span class="w"> </span>tests<span class="w"> </span>-p<span class="w"> </span><span class="s1">'test_ref_model.py'</span><span class="w"> </span>-v
+</code></pre></div>
+<p><code>raw</code> 真正查 B/C 的不同表；<code>transfer</code> 先解析 B 的 Handle 得到 X，再为 C 查找或创建 X 的 Ref。C 已有 1→Y，所以得到 2→X。Python 测试从输出的 Node、Ref、slot、hold 行重建引用关系，并核对固定业务结果，而不是只相信模型打印的“总数正确”。模型不执行 ioctl、不模拟内核调度或真实用户复制故障，真实三进程证据由后面的 VM 实验提供。</p>
+<pre class="mermaid"><code>flowchart TD
+  B["B 的私有表：1 指向 X"] --&gt; X["内核解析为 A 的 Node X"]
+  X --&gt; C["C 为 X 建立 Ref：Handle 2"]
+  C --&gt; Y["C 原有的 1 指向 Y，保持不变"]</code></pre>
+<p>同一数字可以表示不同 Node；不同数字也可以表示同一 Node。驱动转交的是 X 的关系，不是 B 的编号 1。</p>
+<h2 id="4">4. 内核知识补给：查表、持有和接收区<a class="headerlink" href="#4" title="Permanent link">&para;</a></h2>
+<p><strong>查表和取得持有必须同步。</strong> 不能在锁外根据 Handle 得到 <code>mb_ref *</code>，再进入锁增加计数，因为中间可能已被 RELEASE/FREE 回收。教学实现沿用 <code>mb_lock</code>，在同一临界区完成查找、验证、取得持有与发布。</p>
+<p><strong>映射能承载字节，不能自动建立权限。</strong> 第 04 章的只读接收区让驱动写入、用户读取。发送者在普通字节中放一个 Node ID，并不会创建 Ref；只有 offsets 指定的、通过验证和转换的对象才改变引用关系。</p>
+<p><strong>接收数据和长期保留对象是两项责任。</strong> 接收槽保存对象时需要临时保活；应用若要在 FREE 槽后继续使用，必须显式 ACQUIRE。把两者合成一个计数会难以回答“释放这条消息是否也释放了应用主动保存的引用”。</p>
+<p><strong>进程死亡与元数据回收不同。</strong> 远程 Ref 不能阻止 A 退出。A 退出后 Node 的 owner 清空，旧 Ref 仍能被 RELEASE/FREE 清理，但新调用返回 EPIPE。不能立即释放尚被其他表指向的 Node。</p>
+<h2 id="5">5. 三种转换，而不是复制描述符<a class="headerlink" href="#5" title="Permanent link">&para;</a></h2>
+<p>payload 的对象占 24 字节，字段使用小端编码：<code>type:u32, flags:u32, value:u64, cookie:u64</code>。LOCAL 表示发送者拥有的 <code>(node_id, cookie)</code>，HANDLE 表示发送者私有 Handle；远程 HANDLE 的 cookie 必须为 0。控制头、用户指针和 offsets 表沿用本机 ABI；不要把两层字节序混在一起。</p>
+<table>
+<thead>
+<tr>
+<th>输入</th>
+<th>内核如何证明发送者持有</th>
+<th>发给普通远程接收者</th>
+<th>发回对象 owner</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>LOCAL</td>
+<td>Node 已由发送者发布，cookie 一致</td>
+<td>查找/创建目的 Ref，写目的 HANDLE</td>
+<td>保持 LOCAL，增加本地对象槽持有</td>
+</tr>
+<tr>
+<td>HANDLE</td>
+<td>仅查发送者 Ref 表，Node 未死亡</td>
+<td>查找/创建目的 Ref，写目的 HANDLE</td>
+<td>还原 LOCAL(id,cookie)，不创建 owner Ref</td>
+</tr>
+</tbody>
+</table>
+<p>没有“先查本表，查不到再试全局 ID”的后门。猜别人的 Handle 只能按自己的表解释；伪造别人的 LOCAL 返回 EPERM。持有 Ref 表示可以尝试访问对象，业务方法仍需要服务自己的权限判断；本章没有完成第 13 章安全策略。</p>
+<p>完整 offsets 表先复制到内核。payload 复制到接收者 backing 后，驱动从这个快照验证完整的 24 字节对象、对齐、不重叠、类型和字段，随后才进行语义转换。不能从仍可被发送者修改的用户地址再次读对象，以免验证和实际处理针对不同内容。</p>
+<h2 id="6-c-serverb">6. C 不是 Server，B 如何把引用交给它<a class="headerlink" href="#6-c-serverb" title="Permanent link">&para;</a></h2>
+<p>只实现 CALL 的对象转换还不够。本章仍只有 A 一个 Server，B、C 都是普通 Client。若要求 C 先注册 Server 才能接收 B，就暗中引入了下一章的多 owner 路由。</p>
+<p>因此增加明确的教学引导通道：接收者先 mmap、ENABLE_REF，并通过可信 pipe 公布 <code>QUERY.open_id</code>。发送者通过 EXPORT_REF 把自己持有的对象定向写入该上下文的 pending 槽，返回 grant 收据；C 对自己的 IMPORT_REF 领取槽描述符。这个地址与收据都不是秘密能力。</p>
+<pre class="mermaid"><code>sequenceDiagram
+  participant A as A / owner
+  participant B as B / Client
+  participant K as mini 驱动
+  participant C as C / Client
+  A-&gt;&gt;K: LOCAL X 定向 EXPORT 给 B
+  K--&gt;&gt;B: IMPORT 得到 HANDLE 1
+  B-&gt;&gt;K: HANDLE 1 定向 EXPORT 给 C
+  K-&gt;&gt;K: 查 B 表得到 X，建立 C 的 HANDLE 2
+  K--&gt;&gt;B: 返回绑定 C 的 grant
+  B--&gt;&gt;C: pipe 传递 grant 收据
+  C-&gt;&gt;K: IMPORT 自己的 grant
+  C-&gt;&gt;K: CALL_REF target=2
+  K-&gt;&gt;A: RECEIVE_REF 本地 X + 方法
+  A-&gt;&gt;K: REPLY_REF
+  K--&gt;&gt;C: 业务结果</code></pre>
+<p>IMPORT 只查调用者自己的 pending 槽；别人拿到收据仍返回 ENOENT。成功 EXPORT 后，槽持有引用，B 随后释放甚至退出都不撤回它。未领取的槽占用接收者配额，最终 release 会清理；没有隐藏的自动超时。</p>
+<p><strong>授予发生在发布槽时。</strong> IMPORT 只是交付 token、offset、offsets 等元数据。同一上下文其他线程可以先读到自己的映射，也可能猜中已创建的本地 Handle 并调用。设计不承诺 pending 槽在同一上下文内部保密。EXPORT 的输出失败仍在大锁内回滚，不向其他 ioctl 暴露半转换状态。</p>
+<p>这是为单 Server 阶段选择的显式旁路。真实 Binder 把对象转换放在事务数据处理里；不要把 EXPORT/IMPORT 当成 Android 命令。CALL_REF/REPLY_REF 也支持同一对象格式，使本章能同时验证请求和回复中的转换。</p>
+<h2 id="7-ref-node">7. 两种 Ref 单位与五类 Node 持有<a class="headerlink" href="#7-ref-node" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Ref 单位</th>
+<th>取得</th>
+<th>归还</th>
+<th>对应用的意义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>buffer_refs</td>
+<td>每个成功转换为 HANDLE 的描述符一份</td>
+<td>对应槽 FREE、回滚或上下文最终 release</td>
+<td>借用消息内对象；重复对象各占一份。</td>
+</tr>
+<tr>
+<td>user_refs</td>
+<td>ACQUIRE_REF</td>
+<td>RELEASE_REF 或最终 release</td>
+<td>跨越 FREE 消息后的主动持有。</td>
+</tr>
+</tbody>
+</table>
+<p>只要任一计数非零，Ref 就存在并允许查找；两者归零后删除条目。ACQUIRE 可以从槽借用取得用户持有。RELEASE 只能减 user_refs，不能偷减 buffer_refs；<code>user_refs=0</code> 返回 EINVAL。计数递增检查溢出，判断活性使用逻辑或，不能用可能回绕的 u32 加法。</p>
+<p>Node 在上一章三类持有之外新增：每条 Ref entry 一份 <code>ref_entries</code>，以及 owner 收件槽内每个 LOCAL 一份 <code>local_object_refs</code>。</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>Node 总持有 = publication + transaction_refs + target_slot_refs
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>            + ref_entries + local_object_refs
+</code></pre></div>
+<p>Ref 有 10 份 buffer 单位也只占一份 Node.ref_entries；这份 entry 会活到自身所有单位归零。请求槽的调用目标与嵌入对象是两份独立责任，即使指向同一个 Node 也分别记账。普通 reply 不保留调用目标，但 reply 中的对象可以保留对应 Node。</p>
+<p>REMOVE 在其他持有存在时返回 EBUSY，且保持发布状态。Node 计数只保护内核元数据；应用的实际 C 对象仍需自己的互斥和活动持有协议。本章没有实现 Android 的 owner 强弱引用通知。</p>
+<h2 id="8">8. 为什么必须逐项记账并反向回滚<a class="headerlink" href="#8" title="Permanent link">&para;</a></h2>
+<p>假设 B 发 <code>[X, 不存在的 Handle]</code> 给 C。第一项创建 C 的 Ref，第二项才发现 EBADF。如果只释放 payload 槽，C 会遗留一条没有消息归属的引用；若简单删除 X 的 Ref，又可能破坏 C 本来已有的 user_refs。</p>
+<p>槽因此保存内核账本：每成功转换一项，立即记录实际取得的 Ref 或 LOCAL Node 及一份单位。后项失败，按逆序只撤销这些单位。新 Ref 归零才删；原有 Ref 的旧计数和 Handle 都保留。重复对象也逐项记录，不能去重后只减一次。</p>
+<p>FREE 同样使用账本，不能在释放时重新解释 payload、重新查可能已复用的 Handle，或根据用户提供的 offsets 猜资源归属。EXPORT、请求和回复复用同一转换/回收逻辑，以减少三套规则发生分歧的机会。</p>
+<p>CALL 一经接受，会独立持有固定的 Node。之后 Client RELEASE/FREE 原 Ref，甚至空闲 Handle 被新对象复用，都不能改变在途事务目标。取消仍沿用前章：QUEUED 的槽尚未交付，可以内部回收；DELIVERED 槽已属于 Server，保留到 FREE。</p>
+<h2 id="9">9. 代码从哪些边界增加能力<a class="headerlink" href="#9" title="Permanent link">&para;</a></h2>
+<p><a href="../../source/include/uapi/mini_binder.h/">UAPI</a>新增 feature 32 和命令 23–32，保留旧结构布局。<a href="../../source/driver/mini_binder.c/">驱动</a>主要增加以下边界：</p>
+<table>
+<thead>
+<tr>
+<th>入口/辅助函数</th>
+<th>责任</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>mb_find_ref / mb_ref_reap</td>
+<td>本地 Handle 查找；两种单位归零后归还 Node entry 持有。</td>
+</tr>
+<tr>
+<td>mb_ref_build / mb_ref_convert</td>
+<td>复制接收 backing、全表结构验证、逐项语义转换与前缀回滚。</td>
+</tr>
+<tr>
+<td>mb_export_ref / mb_import_ref</td>
+<td>定向授权提交与本 context pending 领取。</td>
+</tr>
+<tr>
+<td>mb_call_ref / mb_reply_ref</td>
+<td>固定私有引用目标；携带请求/回复对象表；输出失败回收。</td>
+</tr>
+<tr>
+<td>mb_slot_drop_objects</td>
+<td>唯一的逐项账本释放路径。</td>
+</tr>
+<tr>
+<td>mb_release</td>
+<td>先摘上下文地址、终结事务、清 owner，再还槽与 Ref。</td>
+</tr>
+</tbody>
+</table>
+<p>上下文地址单调且不复用，耗尽返回 EOVERFLOW；不能让旧收件地址在计数回绕后指向另一个打开上下文。所有跨上下文元数据操作使用 <code>mb_lock → region.lock</code>；mmap/VMA 回调不取大锁，避免反向锁序。用户复制可能在大锁内阻塞，这是教学规模的工程限制。</p>
+<p>ENABLE_REF 是不可撤销选择，防止旧 CALL_NODE 绕过私有表。已有旧 Server 时新 CALL/EXPORT 返回 EPROTOTYPE；REF Server 不接受旧事务命令。每个上下文仍只允许一次 mmap；munmap 后不能重新映射来恢复 pending 领取，IMPORT 返回 ENXIO，最终 release 负责清理。</p>
+<h2 id="10">10. 在虚拟机里验收完整关系<a class="headerlink" href="#10" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>make<span class="w"> </span><span class="nb">test</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>make<span class="w"> </span>-C<span class="w"> </span>build/kernel/out<span class="w"> </span><span class="nv">M</span><span class="o">=</span><span class="s2">"</span><span class="nv">$PWD</span><span class="s2">/driver"</span><span class="w"> </span><span class="nv">W</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>modules
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>bash<span class="w"> </span>tools/qemu/build-rootfs.sh
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="nv">LOG_TAG</span><span class="o">=</span>ref-check-tcg<span class="w"> </span>bash<span class="w"> </span>tools/qemu/run.sh
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="nv">ACCEL</span><span class="o">=</span>kvm<span class="w"> </span><span class="nv">LOG_TAG</span><span class="o">=</span>ref-check-kvm<span class="w"> </span>bash<span class="w"> </span>tools/qemu/run.sh
+</code></pre></div>
+<p>环境构建见 <a href="../p04-environment/">P04</a>，KVM 依赖当前宿主可用；不要把 mini 模块直接装进宿主。<a href="../../source/tests/kernel/ref_test.c/">ref_test.c</a>包含真实 A/B/C 进程和控制 pipe，pipe 只承担启动同步、收件地址、grant 与观察结果，不代替驱动执行目标业务调用。</p>
+<p>验收首先看业务反例：raw 1 在 C 调 Y，raw 2 无效；正确转交后 C 的 2 调 X。随后看引用变化：重复描述符共用 Handle、FREE 保留 user_refs、回到 owner 变 LOCAL、最后 RELEASE 后可复用编号。故障实验必须比较前后账目，而不是只核对 errno。</p>
+<p>特别检查 <code>[有效对象, 无效 Handle]</code> 的第一项分别新建和复用 Ref；检查 IMPORT 输出故障保持 pending 可重试，EXPORT 输出故障取消新投递，REPLY 转换失败保持 DELIVERED 可重试，CALL 输出故障归还未交付 reply 对象。再覆盖取消、owner 退出及不同清理顺序。精确矩阵、通过标记、哈希与未覆盖分支以<a href="../../reports/m3-references-progress/">报告</a>为准。</p>
+<p>REF_STATS 的 user/buffer/local/pending 是活资源，BUFFER_STATS 的 payload_copies/bytes 是历史工作量；输出失败回滚不会倒扣已经做过的复制。最终验收应看到 Node、Ref、活槽、事务与上下文归零，而不是要求历史工作量归零。</p>
+<h2 id="11-android-binder">11. 回到真实 Android Binder<a class="headerlink" href="#11-android-binder" title="Permanent link">&para;</a></h2>
+<p>基线固定为 <a href="../../reference/android-binder/">Linux v6.6</a> 和 <a href="../../reference/aosp-userspace/">AOSP Android 14 用户态</a>。以下是机制对应，不表示两者组成了本教程实际运行的 Android 镜像。</p>
+<table>
+<thead>
+<tr>
+<th>本章推导</th>
+<th>v6.6 入口</th>
+<th>对应与差异</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>私有 Handle 查表</td>
+<td><a href="https://github.com/torvalds/linux/blob/v6.6/drivers/android/binder.c#L1015">binder_get_ref_olocked</a></td>
+<td>按发送 proc 的 desc 查 Ref；mini 按打开上下文链表。</td>
+</tr>
+<tr>
+<td>同 Node 复用 Ref、选择空闲编号</td>
+<td><a href="https://github.com/torvalds/linux/blob/v6.6/drivers/android/binder.c#L1056">binder_get_ref_for_node_olocked</a></td>
+<td>真实 context-manager 可能用 0；mini 的 0 始终无效，发现机制留给下一章。</td>
+</tr>
+<tr>
+<td>LOCAL 转接收者 HANDLE</td>
+<td><a href="https://github.com/torvalds/linux/blob/v6.6/drivers/android/binder.c#L2129">binder_translate_binder</a></td>
+<td>真实格式使用 binder ptr/cookie 和安全钩子；mini 是受 owner 校验的 id/cookie。</td>
+</tr>
+<tr>
+<td>HANDLE 转另一 Handle / 回 owner</td>
+<td><a href="https://github.com/torvalds/linux/blob/v6.6/drivers/android/binder.c#L2182">binder_translate_handle</a></td>
+<td>都先查发送者私有 Ref，再决定接收者表示。</td>
+</tr>
+<tr>
+<td>调用目标必须查本表</td>
+<td><a href="https://github.com/torvalds/linux/blob/v6.6/drivers/android/binder.c#L3016">target.handle 路径</a></td>
+<td>真实驱动另有 handle 0 特例；Node debug ID 不是通用导入入口。</td>
+</tr>
+<tr>
+<td>目标与嵌入对象分别释放</td>
+<td><a href="https://github.com/torvalds/linux/blob/v6.6/drivers/android/binder.c#L1935">binder_transaction_buffer_release</a></td>
+<td>真实处理对象类型和强弱单位更丰富；mini 使用固定槽内核账本。</td>
+</tr>
+<tr>
+<td>部分转换失败只清前缀</td>
+<td><a href="https://github.com/torvalds/linux/blob/v6.6/drivers/android/binder.c#L3676">失败清理</a></td>
+<td>不能释放尚未成功取得的资源，也不能漏掉已转换对象。</td>
+</tr>
+<tr>
+<td>引用协议</td>
+<td><a href="https://github.com/torvalds/linux/blob/v6.6/drivers/android/binder.c#L3830">BC 引用命令</a></td>
+<td>mini 的 user/buffer 单位不是完整 strong/weak、owner 通知和确认协议。</td>
+</tr>
+</tbody>
+</table>
+<p>Android 的 Parcel flatten/unflatten 负责用户态对象表示，驱动负责跨进程转换；libbinder 的对象持有又与驱动协议配合。本章刻意只做能完整实验的强引用子集。内核保留 Node，不能替代 owner 用户态取得强引用后再执行方法的责任。</p>
+<p>在固定 AOSP 提交中，<a href="https://github.com/aosp-mirror-neo/platform_frameworks_native/blob/bfcf75076e562945bae131a4929f29a90d0d2481/libs/binder/Parcel.cpp#L252">flattenBinder 的 kernel 分支</a>把远程代理编码为 HANDLE，把本地对象编码为 BINDER，binder 字段来自 getWeakRefs()，cookie 来自本地 IBinder 指针。<a href="https://github.com/aosp-mirror-neo/platform_frameworks_native/blob/bfcf75076e562945bae131a4929f29a90d0d2481/libs/binder/Parcel.cpp#L322">unflattenBinder</a>则根据转换后的类型，取得本地对象或按接收者 Handle 获取强代理。用户态没有直接把发送者的 Handle 当作接收者代理使用；中间那次内核转换正是本章实验所要求的关系维护。</p>
+<h2 id="12">12. 验收问题<a class="headerlink" href="#12" title="Permanent link">&para;</a></h2>
+<ol>
+<li>B 的 Handle 1、C 的 Handle 1、Node ID 1 偶然相等，为什么仍不能互换？指出各自查哪张表。</li>
+<li>C 先 ACQUIRE 再 FREE，与先 FREE 再 ACQUIRE 有什么不同？在每一步列出两种 Ref 单位。</li>
+<li><code>[X, X, 坏 Handle]</code> 的回滚为什么要还两份 buffer 单位，却不一定删除 X 的 Ref？</li>
+<li>B 成功转交后退出，谁负责 C 尚未领取的 grant？若 C 已 munmap，如何收回这些资源？</li>
+<li>CALL 已排队后原 Handle 被释放并复用，事务靠什么继续固定旧目标？</li>
+<li>对照 binder_translate_handle，解释“传回 owner”为什么不应继续交付一个远程 Handle。</li>
+</ol>
+<p>这一章建立的是已知对象的授予与转交。名字发现、多 owner 路由及 Context Manager 尚未实现；不把 grant 旁路当成 ServiceManager。完成本章开发验收后，本轮在这里暂停。</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  回到页面顶部
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="页脚" >
+        
+          
+          <a href="../07-nodes/" class="md-footer__link md-footer__link--prev" aria-label="上一页: 07 Node 对象身份">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                上一页
+              </span>
+              <div class="md-ellipsis">
+                07 Node 对象身份
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../../routes/part-3/" class="md-footer__link md-footer__link--next" aria-label="下一页: 09 章路线与任务">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                下一页
+              </span>
+              <div class="md-ellipsis">
+                09 章路线与任务
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      <script id="__config" type="application/json">{"base": "../..", "features": ["navigation.sections", "navigation.footer", "navigation.top", "search.highlight", "search.suggest", "content.code.copy"], "search": "../../assets/javascripts/workers/search.973d3a69.min.js", "tags": null, "translations": {"clipboard.copied": "\u5df2\u590d\u5236", "clipboard.copy": "\u590d\u5236", "search.result.more.one": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.more.other": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 # \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.none": "\u6ca1\u6709\u627e\u5230\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.one": "\u627e\u5230 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.other": "# \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.placeholder": "\u952e\u5165\u4ee5\u5f00\u59cb\u641c\u7d22", "search.result.term.missing": "\u7f3a\u5c11", "select.version": "\u9009\u62e9\u5f53\u524d\u7248\u672c"}, "version": null}</script>
+    
+    
+  <script src="../../assets/vendor/mermaid-11.4.1.min.js"></script>
+  <script src="../../assets/diagrams.js"></script>
+  
+      <script src="../../assets/javascripts/bundle.f55a23d4.min.js"></script>
+      
+        <script src="../../assets/math.js"></script>
+      
+        <script src="../../assets/vendor/mathjax-3.2.2-tex-svg.js"></script>
+      
+    
+
+  </body>
+</html>

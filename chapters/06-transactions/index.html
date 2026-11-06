@@ -1,0 +1,2706 @@
+
+<!doctype html>
+<html lang="zh" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="从问题、方案与实验推导教学 IPC 驱动">
+      
+      
+      
+        <link rel="canonical" href="https://shcalm.github.io/binderfromscratch/chapters/06-transactions/">
+      
+      
+        <link rel="prev" href="../05-parcel/">
+      
+      
+        <link rel="next" href="../07-nodes/">
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.20">
+    
+    
+      
+        <title>06 Transaction 与双向缓冲 - 从零设计 Binder</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.e53b48f4.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.06af60db.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/site.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+  </head>
+  
+  
+    
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="teal" data-md-color-accent="deep-orange">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#06" class="md-skip">
+          跳转至
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="页眉">
+    <a href="../.." title="从零设计 Binder" class="md-header__button md-logo" aria-label="从零设计 Binder" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            从零设计 Binder
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              06 Transaction 与双向缓冲
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+    
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="搜索" placeholder="搜索" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="查找">
+        
+        <button type="reset" class="md-search__icon md-icon" title="清空当前内容" aria-label="清空当前内容" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            正在初始化搜索引擎
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/shcalm/binderfromscratch" title="前往仓库" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.0.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    shcalm/binderfromscratch
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="导航栏" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="从零设计 Binder" class="md-nav__button md-logo" aria-label="从零设计 Binder" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    从零设计 Binder
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/shcalm/binderfromscratch" title="前往仓库" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.0.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    shcalm/binderfromscratch
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    阅读入口
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    预备篇 · 初稿
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            预备篇 · 初稿
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../p01-process/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    P01 从 main.c 到 Linux 进程
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../p02-syscalls/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    P02 从函数调用到系统调用
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../p03-module/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    P03 第一个 Linux 内核模块
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../p04-environment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    P04 搭建 Linux 内核实验环境
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    第一篇 · 同步 RPC · 初稿
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            第一篇 · 同步 RPC · 初稿
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../01-why-binder/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    01 为什么需要 Binder
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../02-character-device/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    02 设计第一个字符设备驱动
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../03-sync-rpc/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    03 实现第一个同步 RPC
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    第二篇 · 数据与事务 · 开发中
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            第二篇 · 数据与事务 · 开发中
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../04-mmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    04 mmap 接收映射
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../05-parcel/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    05 Parcel 请求
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    06 Transaction 与双向缓冲
+    
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    06 Transaction 与双向缓冲
+    
+  </span>
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="目录">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      目录
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1" class="md-nav__link">
+    <span class="md-ellipsis">
+      1. 一个结果槽为什么会丢掉调用关系
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2" class="md-nav__link">
+    <span class="md-ellipsis">
+      2. 先比较能满足不同约束的方案
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3" class="md-nav__link">
+    <span class="md-ellipsis">
+      3. 先把身份和返回值分开
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-linux" class="md-nav__link">
+    <span class="md-ellipsis">
+      4. 只补充本章需要的 Linux 概念
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5" class="md-nav__link">
+    <span class="md-ellipsis">
+      5. 四种状态只回答“调用是否终结”
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6" class="md-nav__link">
+    <span class="md-ellipsis">
+      6. 三类资源和一个输出阶段
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7-abi" class="md-nav__link">
+    <span class="md-ellipsis">
+      7. 增量一：加独立模式，不改变旧 ABI
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8" class="md-nav__link">
+    <span class="md-ellipsis">
+      8. 增量二：把发布、交付、终结和输出拆开
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#9" class="md-nav__link">
+    <span class="md-ellipsis">
+      9. 先运行确定性的事务模型
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#10-vm" class="md-nav__link">
+    <span class="md-ellipsis">
+      10. VM 验收必须同时看错误与资源
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#11-binder" class="md-nav__link">
+    <span class="md-ellipsis">
+      11. 回到固定版本的真实 Binder
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#12-node" class="md-nav__link">
+    <span class="md-ellipsis">
+      12. 成本、练习与 Node 的入口
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    第三篇 · 对象与服务 · 开发中
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            第三篇 · 对象与服务 · 开发中
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../07-nodes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    07 Node 对象身份
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../08-references/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    08 Ref 与对象转交
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../routes/part-3/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    09 章路线与任务
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    第四篇 · 线程与生命周期 · 未完成
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            第四篇 · 线程与生命周期 · 未完成
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../routes/part-4/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    10–12 章路线与任务
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    第五篇 · 安全与稳定性 · 未完成
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            第五篇 · 安全与稳定性 · 未完成
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../routes/part-5/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    13–15 章路线与任务
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    第六篇 · 真实 Binder · 未完成
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_8">
+            <span class="md-nav__icon md-icon"></span>
+            第六篇 · 真实 Binder · 未完成
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../routes/part-6/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    16–18 章路线与任务
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9" >
+        
+          
+          <label class="md-nav__link" for="__nav_9" id="__nav_9_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    实验与代码
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_9_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_9">
+            <span class="md-nav__icon md-icon"></span>
+            实验与代码
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../labs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    实验入口
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../labs/intro-boundaries/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    进程与 RPC 边界
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../labs/syscalls/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    系统调用
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../labs/queue-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    请求队列模型
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../labs/mapping-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    接收映射模型
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../labs/parcel-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Parcel 编解码模型
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../labs/transaction-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    事务状态与资源模型
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../labs/node-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Node 身份与持有模型
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../labs/reference-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Ref 与转换回滚模型
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/code-versions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    代码版本索引
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../source/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    源码阅读
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_10" >
+        
+          
+          <label class="md-nav__link" for="__nav_10" id="__nav_10_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    参考与进度
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_10">
+            <span class="md-nav__icon md-icon"></span>
+            参考与进度
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/glossary/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    术语表
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/android-binder/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Android 源码基线
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/aosp-userspace/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    AOSP 用户态基线
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../design/scope/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    范围声明
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../design/teaching-contract/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    教学规范
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../design/device-abi/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    字符设备 ABI
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../design/minimal-rpc/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    同步 RPC 设计
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../design/receive-region/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    接收区设计
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../design/parcel-format/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Parcel 格式设计
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../design/transactions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    事务与双向缓冲设计
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../design/nodes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Node 对象身份设计
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../design/references/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Ref 与对象转换设计
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../plans/roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    全书路线
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../plans/task-backlog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    任务总表
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../plans/phase-01/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    第一阶段计划
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reports/m0-m1-progress/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    阶段实测报告
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reports/m2-mapping-progress/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    第 04 章映射实测报告
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reports/m2-parcel-progress/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    第 05 章 Parcel 实测报告
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reports/m2-transactions-progress/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    第 06 章事务实测报告
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reports/m3-nodes-progress/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    第 07 章 Node 实测报告
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reports/m3-references-progress/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    第 08 章 Ref 实测报告
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/changes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    修订与勘误
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../site-guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    本地构建与预览
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="目录">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      目录
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1" class="md-nav__link">
+    <span class="md-ellipsis">
+      1. 一个结果槽为什么会丢掉调用关系
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2" class="md-nav__link">
+    <span class="md-ellipsis">
+      2. 先比较能满足不同约束的方案
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3" class="md-nav__link">
+    <span class="md-ellipsis">
+      3. 先把身份和返回值分开
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-linux" class="md-nav__link">
+    <span class="md-ellipsis">
+      4. 只补充本章需要的 Linux 概念
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5" class="md-nav__link">
+    <span class="md-ellipsis">
+      5. 四种状态只回答“调用是否终结”
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6" class="md-nav__link">
+    <span class="md-ellipsis">
+      6. 三类资源和一个输出阶段
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7-abi" class="md-nav__link">
+    <span class="md-ellipsis">
+      7. 增量一：加独立模式，不改变旧 ABI
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8" class="md-nav__link">
+    <span class="md-ellipsis">
+      8. 增量二：把发布、交付、终结和输出拆开
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#9" class="md-nav__link">
+    <span class="md-ellipsis">
+      9. 先运行确定性的事务模型
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#10-vm" class="md-nav__link">
+    <span class="md-ellipsis">
+      10. VM 验收必须同时看错误与资源
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#11-binder" class="md-nav__link">
+    <span class="md-ellipsis">
+      11. 回到固定版本的真实 Binder
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#12-node" class="md-nav__link">
+    <span class="md-ellipsis">
+      12. 成本、练习与 Node 的入口
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="06">第 06 章｜让一次调用只得到自己的回复<a class="headerlink" href="#06" title="Permanent link">&para;</a></h1>
+<blockquote>
+<p><strong>章节状态：开发初稿，尚未正式发布。</strong> 实验与验收边界见本章和阶段报告。</p>
+</blockquote>
+<p>第 05 章已经能把结构化请求送进 Server 的只读接收区，由用户态 codec 解码，再返回固定整数。它继承了第 03 章的请求 ID、全局排队和独立等待记录；事务并不是本章才突然出现。上一开发检查点为 <code>dev-c05-20261106</code>，对应提交 <code>31abf0e</code>，见<a href="../../reference/code-versions/">版本索引</a>。</p>
+<p>现在增加一个具体场景：同一个 Client 打开的上下文中，两个线程同时调用；两条请求的业务 <code>sequence</code> 都是 7，Server 先完成第二条，再完成第一条，且回复包含变长字节。我们必须分别回答：回复属于谁，谁有权回复，谁决定取消与回复的先后，以及请求、回复和记录由谁释放。</p>
+<p>本章设计见<a href="../../design/transactions/">事务决策</a>，普通实验见<a href="../../labs/transaction-model/">事务模型</a>。当前普通模型十一项测试通过，完整 TCG/KVM 与旧路径回归通过；命令、证据和限制见<a href="../../reports/m2-transactions-progress/">开发验收报告</a>。开发检查点为 <code>dev-c06-20261106</code>；尚无本章正式发布版本，也没有构建运行完整 AOSP 系统。</p>
+<h2 id="1">1. 一个结果槽为什么会丢掉调用关系<a class="headerlink" href="#1" title="Permanent link">&para;</a></h2>
+<p>先不讨论内核。假设每个连接只有一个 <code>result</code>，两笔调用分别应得 3 和 42。Server 反序完成，Client 在两次写入后才读取：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>连接 1，调用 2，sequence=7：result = 42
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>连接 1，调用 1，sequence=7：result = 3
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>调用 1 读取 result：3
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>调用 2 读取 result：3，原来的 42 已被覆盖
+</code></pre></div>
+<p><a href="../../source/examples/models/transactions.c/">transactions.c</a> 的 <code>slot</code> 模式实际执行这两次赋值和两次读取。第一笔碰巧正确不代表协议正确；第二笔已经失去自己的结果。给同一个槽增加互斥锁，只能保证每次读写不交错，不能让被覆盖的 42 重新出现。</p>
+<p>业务 <code>sequence</code> 也不能补救这个例子。它由应用选择，可以重复；即使应用约定唯一，内核仍要验证回复者身份和调用是否已经终结。否则一个知道 sequence 的无关进程就可能冒充 Server，或让取消后的调用重新得到回复。</p>
+<p>上一版通过“每个打开上下文最多一个在途 CALL”避免了这个共享槽问题。本章选择扩大允许的并发范围，因此必须扩大关联和所有权机制，不能只删除原来的 EBUSY 检查。</p>
+<h2 id="2">2. 先比较能满足不同约束的方案<a class="headerlink" href="#2" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>方案</th>
+<th>能解决什么</th>
+<th>新场景中的取舍</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>每连接一次调用，调用完成后再发下一笔</td>
+<td>连接本身就能关联结果，状态和清理较少</td>
+<td>合理且继续保留在旧 ABI 中；同一连接不能同时保留两笔在途调用。</td>
+</tr>
+<tr>
+<td>每笔调用使用独立连接</td>
+<td>可以沿连接身份等待各自结果，Socket 等传输也能这样设计</td>
+<td>需要管理更多连接、接收区和退出路径；若要复用一条连接，仍需请求标识及分发规则。</td>
+</tr>
+<tr>
+<td>共享可写邮箱，加多个结果槽和显式同步</td>
+<td>双方可信、容量固定时可行，不要求一定经过本驱动</td>
+<td>需要约定槽身份、写权限、发布顺序、取消和复用规则；不能把另一进程的指针直接当作本进程地址。</td>
+</tr>
+<tr>
+<td>驱动事务 ID、每笔等待记录、Client 接收映射</td>
+<td>同一打开上下文可有多笔调用，Server 能反序完成，驱动检查回复资格</td>
+<td>本章选择；增加双向槽、输出回滚、终结竞争和有界资源管理。</td>
+</tr>
+</tbody>
+</table>
+<p>这不是从反例推导出“只能使用 Binder”。我们选择最后一项，是为了沿用已有驱动队列与映射机制，并把关联、终结、缓冲归还放到同一个可检验模型中。普通字段仍由用户态解释；内核只提供传输和资源规则。</p>
+<h2 id="3">3. 先把身份和返回值分开<a class="headerlink" href="#3" title="Permanent link">&para;</a></h2>
+<p>一笔调用至少涉及以下不同的数值，不能因为它们都叫 ID 或 status 就混用：</p>
+<table>
+<thead>
+<tr>
+<th>数值</th>
+<th>谁产生、谁解释</th>
+<th>有效范围</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>业务 sequence</td>
+<td>应用编码、Server 解码</td>
+<td>普通 payload 字段，可重复；驱动不解析。</td>
+</tr>
+<tr>
+<td>事务 id</td>
+<td>驱动单调分配，Server 在 REPLY 中提交</td>
+<td>定位尚可回复的记录；还必须通过 Server、模式和状态检查。</td>
+</tr>
+<tr>
+<td>缓冲 token</td>
+<td>接收区分配器产生，所属上下文用 FREE 归还</td>
+<td>标识一个槽的这次使用，不是事务 ID，也不是业务请求号。</td>
+</tr>
+<tr>
+<td>offset/size</td>
+<td>驱动返回，接收者验证后访问自己的映射</td>
+<td>不等于发送者指针，不能脱离映射与 token 生命周期使用。</td>
+</tr>
+<tr>
+<td>ioctl 返回值及 errno</td>
+<td>驱动/系统调用边界产生</td>
+<td>表示传输、资格或复制失败；C 包装通常以 -1 和 errno 呈现。</td>
+</tr>
+<tr>
+<td>回复 status</td>
+<td>Server 设置，Client 解释</td>
+<td>应用状态；负值不会自动变成 ioctl errno。</td>
+</tr>
+</tbody>
+</table>
+<p>模型的 <code>reorder</code> 用事务 101、102 表示两笔调用；两者连接和 sequence 相同。Server 回复 102 的 42，再回复 101 的 3，结果按事务 ID 查找后送给各自调用。ID 本身不是权限：未知 ID、未领取 ID、错误 Server 和重复回复分别需要拒绝。</p>
+<p>mini 中 Client 不需要再从一个公共“回复队列”猜结果归属。每次阻塞的 CALL 都有自己的等待记录和用户输出地址，驱动唤醒对应的那一次调用。Server 才需要携带领取到的 ID 回复。</p>
+<h2 id="4-linux">4. 只补充本章需要的 Linux 概念<a class="headerlink" href="#4-linux" title="Permanent link">&para;</a></h2>
+<p><strong>同一个 fd 不等于只有一个执行线程。</strong> 多个线程可以对同一个打开文件发起 ioctl，并进入同一个 <code>mb_context</code>；每次系统调用有独立内核栈。驱动没有替用户创建线程，也没有自动串行化所有 ioctl。共享上下文中的计数和队列必须由锁保护。</p>
+<p><strong>等待队列保存的是等待条件的线程，不是业务结果。</strong> 每笔 <code>mb_transaction</code> 内有自己的 wait queue。CALL 发布记录后，<code>wait_event_interruptible()</code> 检查终态条件；条件不满足时允许调度器运行其他线程，信号可能打断等待。REPLY 或失败路径先在锁内提交终态，再唤醒。唤醒只是提示重新检查条件，不能脱离状态就当作成功回复；宏在入队和睡眠过程中重查条件，也避免把“恰好在睡前发生的回复”丢掉。</p>
+<p><strong>mutex 可以睡眠，但睡眠并非免费。</strong> ioctl 运行在可睡眠的进程上下文，本驱动使用 mutex，而非跨用户复制持有自旋锁。<code>copy_from_user()</code>、<code>copy_to_user()</code> 可因缺页睡眠，返回的是未复制字节数，非零即失败；它们不保证失败前一个字节都没动。本章全局 mutex 跨 payload 复制，能简化事务稳定性，却可能让一次缺页阻挡其他调用。状态机不能据此证明没有所有死锁或延迟问题。</p>
+<p><strong>文件、映射和事务不是同一种引用。</strong> 执行中的 ioctl 持有文件引用，保护其调用上下文到返回；VMA 也可使文件在 close(fd) 后继续存活。最终 <code>release</code> 才触发服务断开与上下文清理。事务记录却可以在 CALL 输出前已经释放，不能再通过旧指针读取结果。另一方面，内核 backing 尚存不代表用户映射尚存：并发 munmap 后，返回的偏移可能已经无法在用户态访问。</p>
+<p>这些概念只服务于本章的等待、输出与清理。嵌套调用、线程池调度和完整 Binder 引用系统仍未实现。</p>
+<h2 id="5">5. 四种状态只回答“调用是否终结”<a class="headerlink" href="#5" title="Permanent link">&para;</a></h2>
+<p>状态为 <code>QUEUED</code>、<code>DELIVERED</code>、<code>REPLIED</code>、<code>FAILED</code>。前两者可继续推进，后两者是终态。所有转移、队列计数及一次终结决定都受 <code>mb_lock</code> 保护。</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>QUEUED --成功 RECEIVE--&gt; DELIVERED --成功 REPLY--&gt; REPLIED
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>   |                         |
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>   +----取消/服务最终退出-----+-----------------&gt; FAILED
+</code></pre></div>
+<p>状态图省略了保持原状态的失败，下面这些边界同样属于协议：</p>
+<table>
+<thead>
+<tr>
+<th>起点和事件</th>
+<th>结果</th>
+<th>必须保留或回收什么</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>发布前分配/输入复制失败</td>
+<td>不发布记录</td>
+<td>撤销已预留请求槽，不增 queued/live。</td>
+</tr>
+<tr>
+<td>QUEUED，RECEIVE 输出 EFAULT</td>
+<td>仍 QUEUED</td>
+<td>描述符未交付，Server 可重试领取。</td>
+</tr>
+<tr>
+<td>QUEUED，取消/服务最终退出</td>
+<td>FAILED</td>
+<td>驱动归还尚未交付的请求槽，唤醒 Client。</td>
+</tr>
+<tr>
+<td>DELIVERED，REPLY 输入复制或回复槽分配失败</td>
+<td>仍 DELIVERED</td>
+<td>撤销临时回复槽，Server 可修正后重试。</td>
+</tr>
+<tr>
+<td>DELIVERED，合格回复被接受</td>
+<td>REPLIED</td>
+<td>准备回复输出；不隐式归还 Server 请求槽。</td>
+</tr>
+<tr>
+<td>DELIVERED，取消/服务最终退出</td>
+<td>FAILED</td>
+<td>已交付请求槽仍由 Server 归还或最终 release 清理。</td>
+</tr>
+<tr>
+<td>任一终态，又发生取消/退出/回复</td>
+<td>不改变终态</td>
+<td>不得再减计数、再次完成；重复或迟到回复 ENOENT。</td>
+</tr>
+</tbody>
+</table>
+<p><code>mb_finish()</code> 是统一的终结入口：发现已经终结就直接返回，否则处理原状态对应的计数和未交付请求槽、保存结果并唤醒。它不负责替应用 FREE 所有缓冲，也不释放当前仍由 CALL 使用的记录。</p>
+<p>Client 信号与 Server 回复都要重新取得 <code>mb_lock</code>。若记录已终结，CALL 使用已提交的结果；否则信号导致 FAILED。CALL 把内部 <code>ERESTARTSYS</code> 转成 EINTR，避免系统自动重启 ioctl、悄悄再提交一次业务。取消先赢则迟到回复 ENOENT，回复先赢则信号不能把 REPLIED 覆盖为 FAILED。EINTR 也不证明 Server 没执行过业务，已领取请求可能仍在执行。</p>
+<p>模型每笔终结后 <code>terminal_count</code> 必须恰好为 1；仍在途时为 0。真实驱动没有依赖这个模型计数实现安全，而是使用受锁保护的状态和资源账目。</p>
+<h2 id="6">6. 三类资源和一个输出阶段<a class="headerlink" href="#6" title="Permanent link">&para;</a></h2>
+<p>只看 REPLIED 很容易误判“全部完成”。至少要分别核对以下责任：</p>
+<table>
+<thead>
+<tr>
+<th>对象或阶段</th>
+<th>创建/持有</th>
+<th>转移与释放</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>事务记录</td>
+<td>CALL 分配、发布到全局表；REPLY 在锁内查找</td>
+<td>CALL 观察终态后摘表、保存本地结果并释放；不等待两端 FREE。</td>
+</tr>
+<tr>
+<td>请求槽</td>
+<td>从 Server region 预留，排队时由驱动管理</td>
+<td>RECEIVE 描述符复制成功才交给 Server；Server 读取完后 FREE。排队失败自动撤销。</td>
+</tr>
+<tr>
+<td>回复槽</td>
+<td>非空 REPLY 从 Client region 预留，先为未交付</td>
+<td>CALL 输出成功后归 Client；Client 读完 FREE。输出 EFAULT 时驱动撤销。</td>
+</tr>
+<tr>
+<td>CALL 输出阶段</td>
+<td>CALL 栈保存 token、offset、size、status 等快照</td>
+<td>输出及槽交付/撤销完成后结束，不再依赖事务记录或 Server。</td>
+</tr>
+</tbody>
+</table>
+<p>Server 可以解码并 FREE 请求，稍后再提交回复；也可以回复后再 FREE。只要不再访问借用数据，两种顺序都合法。Client 取消或正常回复不替 Server 归还已交付请求槽，REPLY 中的 payload 指针也只是复制来源，并不转移 Server 用户缓冲的所有权。</p>
+<p>非空回复被接受时，Client 尚未拿到 token，所以回复槽不能立即当作已交付。CALL 唤醒后先在锁内取快照、摘除记录，解锁后 <code>kfree(transaction)</code>；之后的输出只能使用栈上的快照及仍受文件生命周期保护的 caller context。若 <code>copy_to_user()</code> 失败，驱动撤销未交付回复槽，防止 Client 不知道 token 而泄漏；事务仍曾经 REPLIED，不能据此自动重试业务。</p>
+<p>用户必须等 CALL 返回才使用输出。其他线程提前观察控制结构，不构成协议交付；猜到 token 提前 FREE 可能得到 EBUSY。输出失败也可能部分改写用户内存，此时整份结果都应丢弃，不能从残存字段自行构造 FREE。本章整页只读控制页的实验只覆盖一种输出故障，不能推出所有 EFAULT 都零写入。</p>
+<p>两个计数尤其容易混淆。<code>live_requests</code> 计已发布、仍在全局表中的记录，最多 64；它不覆盖记录摘除后的 CALL 输出，也不限制所有驱动内存。<code>active_calls</code> 按上下文持续到<strong>全部输出与槽交付/撤销结束</strong>，才在锁内减少。因此不能在摘表时就允许把尚在输出的 Client 注册成 Server，或启动旧式独占 CALL。</p>
+<p>每个打开上下文仍有固定 64 KiB backing，划为 16 槽，每条 payload 至多 4096 字节。这些上限分别约束槽和表内记录，不是完整的系统内存预算。close(fd) 也不能替代上述协议归还；VMA 可能继续持有文件，延迟最终服务退出。</p>
+<h2 id="7-abi">7. 增量一：加独立模式，不改变旧 ABI<a class="headerlink" href="#7-abi" title="Permanent link">&para;</a></h2>
+<p>完整可编译定义见 <a href="../../source/include/uapi/mini_binder.h/">mini_binder.h</a>，实现见 <a href="../../source/driver/mini_binder.c/">mini_binder.c</a>。QUERY 增加 <code>MB_FEATURE_TRANSACTION=8</code>，命令号使用 12–15：</p>
+<table>
+<thead>
+<tr>
+<th>命令</th>
+<th>参数</th>
+<th>关键约定</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>REGISTER_TRANSACTION</td>
+<td>无</td>
+<td>当前上下文已有只读接收映射、没有在途 CALL，注册为唯一 Server。</td>
+</tr>
+<tr>
+<td>CALL_TRANSACTION</td>
+<td>40 字节 <code>mb_transaction_call</code></td>
+<td>输入 data(u64)、size(u32)、reserved(u32)；输出 token(u64)、offset(u64)、reply_size(u32)、status(s32)。请求 1–4096 字节，reserved=0。</td>
+</tr>
+<tr>
+<td>RECEIVE_TRANSACTION</td>
+<td>既有 <code>mb_buffer_request</code></td>
+<td>返回 id/token/offset/size/reserved，请求槽归 Server。</td>
+</tr>
+<tr>
+<td>REPLY_TRANSACTION</td>
+<td>24 字节 <code>mb_transaction_reply</code></td>
+<td>id(u64)、data(u64)、size(u32)、status(s32)；回复 0–4096 字节，size=0 时必须 data=0。</td>
+</tr>
+</tbody>
+</table>
+<p>双方都要建立自己的只读接收映射：Server 接请求，Client 接回复。空回复不分配槽，CALL 返回 <code>token=offset=reply_size=0</code>，无须 FREE；status 仍然有效。</p>
+<p>新 CALL 允许多个线程共享一个打开上下文并发阻塞。旧 CALL、CALL_BUFFER、CALL_PARCEL 仍遵守每上下文一次一个的 EBUSY 契约，不能在同一活跃上下文与新 CALL 混用。旧 Server 不会被当作能处理变长回复的 Server，模式不符返回 EPROTOTYPE；新 Server 调用旧 REPLY/RECEIVE，或旧 Server 调用新 REPLY/RECEIVE，也必须拒绝。</p>
+<p>这条新路径只运普通字节，没有对象偏移表。它可以由用户态按约定编码结构化回复，但不意味着第 05 章的普通字段格式、内核包络和对象转换已合成完整 Android Parcel。Node、Ref、FD 转交仍不存在。</p>
+<h2 id="8">8. 增量二：把发布、交付、终结和输出拆开<a class="headerlink" href="#8" title="Permanent link">&para;</a></h2>
+<p>沿三个关键路径读源码，比一次抄出全部结构体更能看清责任。</p>
+<p><strong>CALL：先取得可撤销资源，再发布。</strong> 复制并验证输入控制结构，初始化等待队列；在 <code>mb_lock</code> 下检查 Server、模式、并发资格、Client 映射和表内上限。预留 Server 槽，直接将 payload 复制进去；失败就撤销槽。成功后才分配请求 ID、连接 caller/receiver、入队并增加计数，随后解锁并唤醒 Server。64 位请求 ID 不复用，耗尽为 EOVERFLOW，不能回绕到仍可能有意义的旧值。</p>
+<p><strong>RECEIVE：输出成功才算领取。</strong> 检查当前注册 Server 和模式，从 QUEUED 记录中取一笔。先复制描述符到 Server 用户地址，成功后才标记槽 delivered、状态 DELIVERED，并更新 queued/delivered。输出 EFAULT 不消费这笔请求；否则一个坏输出地址就能拿走消息，却没有 token 可以归还。交付后清除记录中的 receiver 指针，后续不能依赖它持有 Server。</p>
+<p><strong>REPLY：资格和目标都来自记录。</strong> 复制/验证回复控制结构后，在锁内检查当前 Server、TRANSACTION 模式以及匹配 ID 的 DELIVERED 记录。错误上下文为 EPERM；在合法回复者和模式下，未知、未领取、重复、取消后的 ID 为 ENOENT。对非空 payload，从记录关联的 Client region 预留槽并复制，成功才记录回复元数据并 <code>mb_finish(..., 0)</code>。不能按 Server 给出的任意 Client 地址写结果，也不按业务 sequence 选择目标。</p>
+<p>空回复完全跳过 reserve 和 Client VMA 检查。这给回复区满或已 munmap 的调用留下一个终结出口：Server 可以发送无 payload 的业务失败，而不是让 Client 永久等待。它不是超时机制，也不会替 Server 决定何时放弃业务。</p>
+<p>有数据回复可能遇到下列可重试失败：</p>
+<table>
+<thead>
+<tr>
+<th>错误</th>
+<th>含义</th>
+<th>事务与槽结果</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>EAGAIN</td>
+<td>Client 的 16 个槽已占满</td>
+<td>保持 DELIVERED；释放旧回复槽后可重试，或发空回复。</td>
+</tr>
+<tr>
+<td>ENXIO</td>
+<td>预留时 Client 已无接收 VMA</td>
+<td>保持 DELIVERED；可以发空回复。</td>
+</tr>
+<tr>
+<td>EFAULT</td>
+<td>回复来源不可完整读取</td>
+<td>保持 DELIVERED，已临时预留的槽必须撤销；修正来源后可重试。</td>
+</tr>
+<tr>
+<td>EOVERFLOW</td>
+<td>接收槽 token 耗尽</td>
+<td>保持 DELIVERED；不回绕复用，空回复仍可终结。</td>
+</tr>
+</tbody>
+</table>
+<p>输入分配的真正 ENOMEM 需要独立故障注入；槽耗尽 EAGAIN 不能叫作已经测试 kmalloc 失败。也不能仅凭上表说各种错误优先级相同：实现先复制控制结构，之后再验证回复资格，多个错误同时存在时以实际检查顺序为准。</p>
+<p>CALL 的最后阶段可用下面的顺序概括；这是阅读提纲，完整错误路径以驱动源码为准：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>等待终态
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>取得 mb_lock，确认终态或提交取消
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>摘除记录，减少 live_requests，复制结果到本地快照
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>释放 mb_lock，释放事务记录
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>复制 CALL 输出：成功则交付回复槽，失败则撤销未交付槽
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>取得 mb_lock，减少 active_calls，结束旧式独占标记
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>返回
+</code></pre></div>
+<p>锁顺序仍为 <code>mb_lock → region.lock</code>，region mutex 不跨用户复制，mmap/VMA 回调不取 <code>mb_lock</code>。全局锁保护回复查找期间的记录，CALL 的文件引用保护 caller backing；这些持有条件是当前能直接复制到目标 region 的前提。未来若把用户复制移出大锁，必须先补上稳定持有和重验证，不能只移动两行代码。Client 在 reserve 后再 munmap 时，backing 可以仍安全，用户映射却不保证可访问，应用须自行同步。</p>
+<h2 id="9">9. 先运行确定性的事务模型<a class="headerlink" href="#9" title="Permanent link">&para;</a></h2>
+<p>前置条件为 C11 编译器、make 和 Python 3；无需 root、设备、VM 或网络。在仓库根目录执行：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>make<span class="w"> </span>build/transactions
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>./build/transactions<span class="w"> </span>slot
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>./build/transactions<span class="w"> </span>reorder
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>./build/transactions<span class="w"> </span>matrix
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>./build/transactions<span class="w"> </span>trace<span class="w"> </span>deliver<span class="w"> </span>reply<span class="w"> </span>reap<span class="w"> </span>output_ok<span class="w"> </span>free_request<span class="w"> </span>free_reply
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>python3<span class="w"> </span>-m<span class="w"> </span>unittest<span class="w"> </span>discover<span class="w"> </span>-s<span class="w"> </span>tests<span class="w"> </span>-p<span class="w"> </span>test_transaction_model.py<span class="w"> </span>-v
+</code></pre></div>
+<p>命令均应退出 0；十一项自动测试全部通过。<code>slot</code> 中第二笔应观察到错误的 3，正是待修复的反例；<code>reorder</code> 应得到以下结果和最终账目：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>event=client_result id=102 logical_call=2 client=1 sequence=7 result=42
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>event=client_result id=101 logical_call=1 client=1 sequence=7 result=3
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>event=summary records=0 request_slots=0 reply_slots=0 terminal_total=2
+</code></pre></div>
+<p><code>matrix</code> 应输出 52 条 step，即四种状态乘十三种事件。Python 用独立契约表核对全部单步，并遍历八种核心事件的 64 个有序事件对。它还检查临时槽回滚、终结至多一次、独立 FREE 和记录回收；不是直接读取 C 的 switch 来生成预期。完整事件表见<a href="../../labs/transaction-model/">实验说明</a>。矩阵样本是特定资源子状态，不是所有槽归属组合的穷举。</p>
+<p>再按确定顺序检验两种赢家与输出失败：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>./build/transactions<span class="w"> </span>trace<span class="w"> </span>deliver<span class="w"> </span>reply<span class="w"> </span>cancel<span class="w"> </span>reap<span class="w"> </span>output_ok<span class="w"> </span>free_request<span class="w"> </span>free_reply
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>./build/transactions<span class="w"> </span>trace<span class="w"> </span>deliver<span class="w"> </span>cancel<span class="w"> </span>reply<span class="w"> </span>free_request<span class="w"> </span>reap
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>./build/transactions<span class="w"> </span>trace<span class="w"> </span>receive_fault<span class="w"> </span>deliver<span class="w"> </span>reply_fault<span class="w"> </span>reply<span class="w"> </span>reap<span class="w"> </span>output_fault<span class="w"> </span>free_request
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>./build/transactions<span class="w"> </span>trace<span class="w"> </span>deliver<span class="w"> </span>reply_empty<span class="w"> </span>reap<span class="w"> </span>output_ok<span class="w"> </span>free_request
+</code></pre></div>
+<p>第一条 REPLIED，后来的 cancel 拒绝；第二条 FAILED，迟到 reply 拒绝；第三条经过 RECEIVE 回滚、REPLY 回滚和 CALL 输出失败，终态仍 REPLIED，回复槽被撤销；第四条空回复没有回复槽，结果为 <code>none</code>。四条最终均应 <code>records=0 request_slots=0 reply_slots=0 terminal_total=1</code>。事件适用且模拟复制失败时，模型可能打印 <code>accepted=1</code>，这不等于真实故障 ioctl 返回成功。</p>
+<p>结果与 ID 错配、重复终结、槽遗留、合法重试被拒绝、测试超时或异常信号都算失败。未知模式/事件应退出 2，stderr 有 usage，stdout 为空；不能把未知输入当预期业务拒绝。单次模型执行自动截止为五秒，编译截止为三十秒。</p>
+<p>模型没有线程、真实 wait queue、用户复制、动态记录回收、VMA 或锁。为观察 reap 后的资源，它保留静态账目，但活跃 ID 查找已排除被回收记录；这不允许真实驱动解引用已 kfree 的结构。它只演示锁串行化后可能的顺序，不能证明真实竞争正确。自动测试清理临时目录；手工产物可用 <code>rm -f build/transactions</code> 删除，没有后台进程或内核资源。</p>
+<h2 id="10-vm">10. VM 验收必须同时看错误与资源<a class="headerlink" href="#10-vm" title="Permanent link">&para;</a></h2>
+<p>准备 <a href="../p04-environment/">P04 环境</a>后，完整 VM 入口只有：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>make<span class="w"> </span>vm-test
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>make<span class="w"> </span>vm-test-kvm
+</code></pre></div>
+<p>目标构建客户机并由 init 运行测试；不要在宿主加载驱动或直接运行客户机测试程序。KVM 需要可用 <code>/dev/kvm</code>，未运行应明确记为未运行。现有入口包含 <a href="../../source/tests/kernel/transaction_test.c/">transaction_test.c</a>，但文件存在和打印 PASS 都不能替代完整执行证据。下列矩阵已在完整 TCG/KVM 中验证，原始日志哈希和不能覆盖的路径见<a href="../../reports/m2-transactions-progress/">报告</a>。</p>
+<table>
+<thead>
+<tr>
+<th>要验证的问题</th>
+<th>确定性步骤与预期</th>
+<th>失败判据</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>同 fd 的两次调用能否正确反序返回</td>
+<td>两线程共享 Client fd，VM 的 sequence 都为 77（普通模型为 7）；Server 领取两条后反序回复不同结构化结果，逐笔解码</td>
+<td>只运行两个独立 fd、结果串线、只比较 sequence 或等待超时。</td>
+</tr>
+<tr>
+<td>回复资格是否有效</td>
+<td>错误 Server 为 EPERM；合法 Server 的未领取/未知/重复 ID 为 ENOENT；旧新模式混用为 EPROTOTYPE</td>
+<td>非法回复成功或改变队列/槽账目。</td>
+</tr>
+<tr>
+<td>两端 token 能否独立归还</td>
+<td>Server 解码后 FREE 请求，稍后回复；Client 返回后解码并 FREE 回复，也覆盖回复先于请求 FREE</td>
+<td>REPLY 自动吞掉已交付请求槽、FREE 错上下文成功或重复 FREE 成功。</td>
+</tr>
+<tr>
+<td>领取输出失败是否保留消息</td>
+<td>RECEIVE 输出地址不可写，得到 EFAULT；换合法地址重试领取同一请求</td>
+<td>消息消失、重复交付或留下无法归还槽。</td>
+</tr>
+<tr>
+<td>回复部分输入失败是否撤销临时槽</td>
+<td>来源跨不可读页，REPLY 得 EFAULT；事务仍 DELIVERED，修正后正常回复</td>
+<td>槽增长、提前终结、重试找不到记录。</td>
+</tr>
+<tr>
+<td>回复区满是否有恢复路径</td>
+<td>Client 保留 16 枚已交付回复 token；下一非空回复 EAGAIN；分别验证 FREE 后重试和空回复终结</td>
+<td>永久阻塞、失败仍占新槽或空回复仍要求槽。</td>
+</tr>
+<tr>
+<td>没有 Client 映射如何终结</td>
+<td>CALL 发布后按同步点 munmap；非空回复 ENXIO，空 payload 业务失败可成功终结</td>
+<td>无映射仍假称可读、有错误却不能结束事务。</td>
+</tr>
+<tr>
+<td>CALL 输出故障是否自动回收</td>
+<td>控制页设只读；业务已完成，CALL 输出 EFAULT；核对回复未交付槽被撤销</td>
+<td>用 EFAULT 推论业务没执行、自动重发或槽残留。</td>
+</tr>
+<tr>
+<td>queued/delivered 取消是否不同</td>
+<td>分别在领取前后向阻塞 Client 线程发信号，CALL 得 EINTR；queued 自动回收，delivered 仍由 Server FREE</td>
+<td>取消后回复复活、请求槽双重释放或无人归还。</td>
+</tr>
+<tr>
+<td>回复与取消的两种顺序</td>
+<td>取消先行时等待 CALL 返回 EINTR 后才回复，得到 ENOENT；回复先行时 REPLY 提交成功后发信号，CALL 保持成功</td>
+<td>靠 sleep 猜顺序、两边都成功终结或计数减两次。回复先行的信号可能在 CALL 返回后到达，不能声称强制覆盖内核输出窗口。</td>
+</tr>
+<tr>
+<td>Server 最终退出如何影响两种状态</td>
+<td>分别保留 queued/delivered 请求，使 Server 解除 VMA 并最终关闭文件；Client 得 EPIPE</td>
+<td>只 close 但仍保留 VMA 就宣称死亡、等待者不醒或卸载残留。</td>
+</tr>
+<tr>
+<td>Client 进程退出如何释放资源</td>
+<td>子进程自行 open/mmap，在 queued/delivered 时 SIGKILL；waitpid 后核对 Client region/context 消失，queued 槽自动回收、delivered 槽由 Server FREE</td>
+<td>父进程仍持有同一 Client 文件掩盖退出、只发信号却不确认退出、迟到回复成功。未强制覆盖回复已接受而输出未完成窗口。</td>
+</tr>
+<tr>
+<td>旧 ABI 和最终账目是否保持</td>
+<td>同次 VM 完成所有既有查询/RPC/映射/Parcel 回归；回收线程、槽和映射后卸载</td>
+<td>只看新测试、忽略旧路径失败或资源不归零。</td>
+</tr>
+</tbody>
+</table>
+<p>用 pipe、明确的领取/完成报告和内核计数建立顺序，不用任意 sleep 代替同步。每次预期错误都要核对 errno、状态与资源，再执行正常调用确认可以恢复。<code>queued=delivered=live_requests=0</code> 不是单独的通过标准；还应检查各接收区槽、region、上下文及卸载账目，且必须等相关 CALL 输出结束。</p>
+<p>宿主运行器默认 120 秒截止，测试还需自己的有界等待。整次运行必须同时满足运行器退出 0、全局 <code>MINI_LAB_PASS</code>、预期断言、最终账目和没有内核告警；超时不能改写成“偶发未通过”。记录代码版本、加速方式、完整日志和哈希，不能从源码中的断言推导实测通过。没有 KASAN/lockdep 的环境应公开这一限制，零计数不等于通用泄漏或竞态证明。</p>
+<p>清理顺序须确保所有等待者退出：终结或取消剩余请求，join/wait 子线程和进程，归还已交付 token，munmap，关闭 fd/管道，最后卸载模块并结束客户机。故障用例也必须走清理；失败 VM 销毁后重建，不复用半失败状态。复制统计计“成功接受/发布的 payload”，不计所有尝试；回复被接受但 CALL 输出失败仍可能已计一次成功复制，不能用槽已撤销推断字节从未复制。</p>
+<h2 id="11-binder">11. 回到固定版本的真实 Binder<a class="headerlink" href="#11-binder" title="Permanent link">&para;</a></h2>
+<p>驱动固定上游 Linux <strong>v6.6</strong>；用户态固定 AOSP <strong>android-14.0.0_r1</strong>、<code>frameworks/native</code> 提交 <strong><code>bfcf75076e562945bae131a4929f29a90d0d2481</code></strong>。获取和哈希见<a href="../../reference/android-binder/">驱动基线</a>及 <a href="../../reference/aosp-userspace/">AOSP 基线</a>。以下位置已按固定源码核查，仅讨论 kernel Binder 路径；两个来源分别固定，不表示已构建为经过验证的 Android 系统。</p>
+<table>
+<thead>
+<tr>
+<th>教学问题与 mini 机制</th>
+<th>固定版本源码入口</th>
+<th>相同点与差异</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>请求和回复分开提交</td>
+<td>Linux v6.6 <a href="https://github.com/torvalds/linux/blob/v6.6/drivers/android/binder.c#L4014">BC_TRANSACTION/BC_REPLY 分支，4014 行</a>、<a href="https://github.com/torvalds/linux/blob/v6.6/drivers/android/binder.c#L2896">binder_transaction，2896 行</a></td>
+<td>都区分请求与回复，并验证调用关系；真实协议通过 BC/BR 命令流和 binder_transaction_data，mini 四个 ioctl 不兼容。</td>
+</tr>
+<tr>
+<td>回复应回到哪次同步调用</td>
+<td>v6.6 <a href="https://github.com/torvalds/linux/blob/v6.6/drivers/android/binder.c#L2948">reply 分支，2948 行</a>、<a href="https://github.com/torvalds/linux/blob/v6.6/drivers/android/binder.c#L3623">同步栈链接，3623 行</a></td>
+<td>真实从当前线程 transaction_stack 取得 in_reply_to，校验接收线程和原调用者栈关系；mini 是全局 ID 表加每 CALL 等待者，不能等同真实同步栈路由。</td>
+</tr>
+<tr>
+<td>回复如何交给原调用线程</td>
+<td>v6.6 <a href="https://github.com/torvalds/linux/blob/v6.6/drivers/android/binder.c#L3596">成功 reply 路径，3596 行</a></td>
+<td>真实弹出调用关系，把回复工作排给原调用线程并唤醒；mini 保存结果并唤醒自己的 wait queue，没有嵌套事务栈和线程池。</td>
+</tr>
+<tr>
+<td>完成通知是不是回复结果</td>
+<td>v6.6 <a href="https://github.com/torvalds/linux/blob/v6.6/drivers/android/binder.c#L3614">同步完成通知延迟，3614 行</a>、<a href="https://github.com/torvalds/linux/blob/v6.6/drivers/android/binder.c#L4486">BR_TRANSACTION_COMPLETE，4486 行</a>；AOSP <a href="https://github.com/aosp-mirror-neo/platform_frameworks_native/blob/bfcf75076e562945bae131a4929f29a90d0d2481/libs/binder/IPCThreadState.cpp#L1030">waitForResponse，1030 行</a></td>
+<td>COMPLETE 不携带业务回复；用户态期待 reply 时不会因它结束等待。v6.6 同步路径明确延迟该通知到目标回复或发生错误，不能说所有通知都在入队后立即发出。mini 没有独立 COMPLETE 协议事件。</td>
+</tr>
+<tr>
+<td>变长回复如何形成用户态 Parcel</td>
+<td>AOSP <a href="https://github.com/aosp-mirror-neo/platform_frameworks_native/blob/bfcf75076e562945bae131a4929f29a90d0d2481/libs/binder/IPCThreadState.cpp#L1059">BR_REPLY，1059 行</a></td>
+<td>真实读取事务描述符，正常数据用 ipcSetDataReference 及 freeBuffer 回调建立 Parcel 引用；mini 只返回 token/offset/size/status，由应用自行解码与 FREE。</td>
+</tr>
+<tr>
+<td>回复结束是否自动归还所有缓冲</td>
+<td>v6.6 <a href="https://github.com/torvalds/linux/blob/v6.6/drivers/android/binder.c#L3970">BC_FREE_BUFFER，3970 行</a>；AOSP <a href="https://github.com/aosp-mirror-neo/platform_frameworks_native/blob/bfcf75076e562945bae131a4929f29a90d0d2481/libs/binder/IPCThreadState.cpp#L1602">freeBuffer，1602 行</a></td>
+<td>真实有独立缓冲释放命令，libbinder 回调写入 BC_FREE_BUFFER；mini 用所属上下文的 token FREE。概念上分开记录与缓冲生命周期，不表示两者分配器或释放细节等价。</td>
+</tr>
+</tbody>
+</table>
+<p>真实 Binder 的同步回复并不是“Server 可以凭一个任意全局 ID，从任意线程反序回复所有调用”。它与线程栈、原调用关系以及嵌套路径相联系。本章特意采用共享 fd 上的独立 ID 协议来隔离身份和资源责任，不能据此宣称已实现真实 Binder 的同步调度。</p>
+<p><code>BR_TRANSACTION_COMPLETE</code> 与业务完成也应从内容而非到达时刻区分。某版本某路径延迟发送它，不会使它自动包含方法执行结果；期待回复的 libbinder 仍要等 BR_REPLY 或错误。业务 status、用户态方法分发、普通 Parcel 编解码都不是驱动替应用执行的业务工作。</p>
+<h2 id="12-node">12. 成本、练习与 Node 的入口<a class="headerlink" href="#12-node" title="Permanent link">&para;</a></h2>
+<p>独立事务使同一上下文能容纳并发调用，代价是每笔记录和等待队列、两端槽、回滚路径及输出阶段。全局链表查找受 64 条表内记录上限约束，仍是线性查找；固定槽会造成内部浪费，持有未 FREE 回复会反压后续调用。全局锁跨用户复制保留了明显阻塞风险。本章没有公平性、硬实时延迟、真正 ENOMEM 注入或吞吐优势结论；运行时间更短也不能直接证明复制次数更少。</p>
+<ol>
+<li>如果给单个 result 槽的所有读写加 mutex，能保存反序返回的两个结果吗？画出两个写入先于两个读取的顺序，再判断是否仍会覆盖。需要增加存储或限制并发，而非仅保护单次赋值。</li>
+<li>取消发生在 DELIVERED 后，为什么不能由 Client 直接 FREE Server 请求槽？槽已交付，Server 可能仍在读取；取消调用关系不撤销已经交付的借用地址。请指出最终应由哪个路径清理。</li>
+<li>REPLY 成功、CALL 输出 EFAULT、Server 请求槽仍未 FREE，可以同时成立吗？分别列出事务状态、记录、请求槽和回复槽归属；不要用一个“完成”概括它们。</li>
+<li>把 active_calls 在摘表时减一，会遗漏哪个阶段？尝试推演另一线程此时注册 Server 或启动旧 CALL，为什么 live_requests=0 不能证明上下文空闲。</li>
+<li>Client 回复区已满，Server 可以只返回业务 -ENOSPC 吗？只有 size=0、data=0 的回复才完全绕过槽分配；在另一个非空 payload 里编码错误仍需槽。</li>
+<li>模型所有 52 条状态事件都通过，能证明 kfree 后没有访问吗？不能；模型保留静态观察账目，真实实现必须另行核查所有指针持有、快照和输出路径。</li>
+<li>真实 v6.6 同步路径延迟 COMPLETE，为什么 libbinder 仍不把它当方法结果？沿 waitForResponse 的 reply 参数和 BR_REPLY 分支核对所等待的数据，而非只比较事件时间。</li>
+</ol>
+<p>现在一笔调用有自己的身份和终结规则，但系统仍只有一个全局 Server。假如同一个进程提供“计算器”和“存储”两个对象，事务 ID 只能回答“这是哪一次调用”，不能回答“调用哪个长期存在的服务对象”。下一章引入 Node：先区分被调用对象与一次调用，再讨论如何把对象身份安全地交给其他进程。事务、缓冲与对象生命周期也必须继续分开，而不能让新的对象号取代已有的所有权规则。</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  回到页面顶部
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="页脚" >
+        
+          
+          <a href="../05-parcel/" class="md-footer__link md-footer__link--prev" aria-label="上一页: 05 Parcel 请求">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                上一页
+              </span>
+              <div class="md-ellipsis">
+                05 Parcel 请求
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../07-nodes/" class="md-footer__link md-footer__link--next" aria-label="下一页: 07 Node 对象身份">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                下一页
+              </span>
+              <div class="md-ellipsis">
+                07 Node 对象身份
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      <script id="__config" type="application/json">{"base": "../..", "features": ["navigation.sections", "navigation.footer", "navigation.top", "search.highlight", "search.suggest", "content.code.copy"], "search": "../../assets/javascripts/workers/search.973d3a69.min.js", "tags": null, "translations": {"clipboard.copied": "\u5df2\u590d\u5236", "clipboard.copy": "\u590d\u5236", "search.result.more.one": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.more.other": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 # \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.none": "\u6ca1\u6709\u627e\u5230\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.one": "\u627e\u5230 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.other": "# \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.placeholder": "\u952e\u5165\u4ee5\u5f00\u59cb\u641c\u7d22", "search.result.term.missing": "\u7f3a\u5c11", "select.version": "\u9009\u62e9\u5f53\u524d\u7248\u672c"}, "version": null}</script>
+    
+    
+  <script src="../../assets/vendor/mermaid-11.4.1.min.js"></script>
+  <script src="../../assets/diagrams.js"></script>
+  
+      <script src="../../assets/javascripts/bundle.f55a23d4.min.js"></script>
+      
+        <script src="../../assets/math.js"></script>
+      
+        <script src="../../assets/vendor/mathjax-3.2.2-tex-svg.js"></script>
+      
+    
+
+  </body>
+</html>
