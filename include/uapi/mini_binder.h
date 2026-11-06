@@ -10,6 +10,8 @@
 #define MB_FEATURE_MMAP 2
 #define MB_FEATURE_PARCEL 4
 #define MB_FEATURE_TRANSACTION 8
+#define MB_FEATURE_NODE 16
+#define MB_MAX_NODES 16
 #define MB_MAX_REQUESTS 64
 #define MB_MAP_BYTES 65536
 #define MB_MAP_SLOTS 16
@@ -126,5 +128,41 @@ struct mb_transaction_reply {
 #define MB_IOC_CALL_TRANSACTION _IOWR('m', 13, struct mb_transaction_call)
 #define MB_IOC_RECEIVE_TRANSACTION _IOR('m', 14, struct mb_buffer_request)
 #define MB_IOC_REPLY_TRANSACTION _IOW('m', 15, struct mb_transaction_reply)
+
+struct mb_node_publish {
+    __u64 cookie;
+    __u64 id;
+};
+
+struct mb_node_call {
+    __u64 target;
+    __u32 code;
+    __u32 reserved;
+    struct mb_transaction_call call;
+};
+
+struct mb_node_request {
+    struct mb_buffer_request buffer;
+    __u64 node;
+    __u64 cookie;
+    __u32 code;
+    __u32 reserved;
+};
+
+struct mb_node_stats {
+    __u64 live_nodes;
+    __u32 owned_nodes;
+    __u32 transaction_refs;
+    __u32 slot_refs;
+    __u32 reserved;
+};
+
+#define MB_IOC_REGISTER_NODE _IO('m', 16)
+#define MB_IOC_PUBLISH_NODE _IOWR('m', 17, struct mb_node_publish)
+#define MB_IOC_REMOVE_NODE _IOW('m', 18, __u64)
+#define MB_IOC_CALL_NODE _IOWR('m', 19, struct mb_node_call)
+#define MB_IOC_RECEIVE_NODE _IOR('m', 20, struct mb_node_request)
+#define MB_IOC_REPLY_NODE _IOW('m', 21, struct mb_transaction_reply)
+#define MB_IOC_NODE_STATS _IOR('m', 22, struct mb_node_stats)
 
 #endif

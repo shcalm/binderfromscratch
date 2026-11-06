@@ -17,6 +17,7 @@
 struct mb_slot {
     u64 token;
     bool delivered;
+    struct mb_node *node;
 };
 
 struct mb_region {
@@ -32,6 +33,7 @@ enum mb_service_mode {
     MB_SERVICE_FIXED,
     MB_SERVICE_BUFFER,
     MB_SERVICE_TRANSACTION,
+    MB_SERVICE_NODE,
 };
 
 enum mb_transaction_state {
@@ -50,6 +52,15 @@ struct mb_context {
     struct mb_region region;
 };
 
+struct mb_node {
+    struct list_head link;
+    struct mb_context *owner;
+    u64 id;
+    u64 cookie;
+    unsigned int transaction_refs;
+    unsigned int slot_refs;
+};
+
 struct mb_transaction {
     struct list_head link;
     wait_queue_head_t wait;
@@ -60,6 +71,8 @@ struct mb_transaction {
     bool buffered;
     struct mb_context *receiver;
     struct mb_context *caller;
+    struct mb_node *node;
+    u32 code;
     struct mb_transaction_call transaction_call;
     struct mb_buffer_call buffer_call;
     struct mb_buffer_request buffer_request;
@@ -67,10 +80,12 @@ struct mb_transaction {
 
 static DEFINE_MUTEX(mb_lock);
 static LIST_HEAD(transactions);
+static LIST_HEAD(nodes);
 static DECLARE_WAIT_QUEUE_HEAD(server_wait);
 static struct mb_context *server;
 static u64 next_request;
 static u64 next_token;
+static u64 next_node;
 static unsigned int queued, delivered, live_requests;
 
 static atomic64_t next_id = ATOMIC64_INIT(0);
@@ -83,6 +98,25 @@ MODULE_PARM_DESC(fail_after_register, "Exercise cleanup after device registratio
 static bool fail_region_alloc;
 module_param(fail_region_alloc, bool, 0444);
 MODULE_PARM_DESC(fail_region_alloc, "Inject a receive-region allocation failure");
+
+/* Node identity and all holds are protected by mb_lock. */
+static struct mb_node *mb_find_node(u64 id)
+{
+    struct mb_node *node;
+
+    list_for_each_entry(node, &nodes, link)
+        if (node->id == id)
+            return node;
+    return NULL;
+}
+
+static void mb_node_reap(struct mb_node *node)
+{
+    if (!node || node->owner || node->transaction_refs || node->slot_refs)
+        return;
+    list_del(&node->link);
+    kfree(node);
+}
 
 static void mb_vma_open(struct vm_area_struct *vma)
 {
@@ -180,6 +214,7 @@ unlock:
     return error;
 }
 
+/* Caller holds mb_lock, including for slots without a target Node. */
 static int mb_region_free(struct mb_region *region, u64 token, bool rollback)
 {
     unsigned int slot;
@@ -195,6 +230,13 @@ static int mb_region_free(struct mb_region *region, u64 token, bool rollback)
         }
         region->slots[slot].token = 0;
         region->slots[slot].delivered = false;
+        if (region->slots[slot].node) {
+            struct mb_node *node = region->slots[slot].node;
+
+            region->slots[slot].node = NULL;
+            node->slot_refs--;
+            mb_node_reap(node);
+        }
         atomic64_dec(&live_slots);
         error = 0;
         break;
@@ -257,6 +299,7 @@ enum mb_call_mode {
     MB_CALL_BUFFER,
     MB_CALL_PARCEL,
     MB_CALL_TRANSACTION,
+    MB_CALL_NODE,
 };
 
 static int mb_validate_offsets(u32 size, const u32 *offsets, u32 count)
@@ -285,14 +328,18 @@ static long mb_call(struct mb_context *context, void __user *arg,
     struct mb_transaction *transaction;
     struct mb_parcel_call parcel_call = { 0 };
     struct mb_transaction_call transaction_call;
+    struct mb_node_call node_call = { 0 };
+    struct mb_node *node = NULL;
     struct mb_buffer_call buffer_call;
     struct mb_call fixed_call;
     u32 offsets[MB_MAX_OBJECTS];
     bool buffered = mode != MB_CALL_FIXED;
-    bool mapped_reply = mode == MB_CALL_TRANSACTION;
+    bool node_mode = mode == MB_CALL_NODE;
+    bool mapped_reply = mode == MB_CALL_TRANSACTION || node_mode;
     bool active = false;
-    enum mb_service_mode service_mode = mapped_reply ? MB_SERVICE_TRANSACTION :
-        (buffered ? MB_SERVICE_BUFFER : MB_SERVICE_FIXED);
+    enum mb_service_mode service_mode = node_mode ? MB_SERVICE_NODE :
+        (mapped_reply ? MB_SERVICE_TRANSACTION :
+         (buffered ? MB_SERVICE_BUFFER : MB_SERVICE_FIXED));
     void *target;
     int error;
 
@@ -301,8 +348,18 @@ static long mb_call(struct mb_context *context, void __user *arg,
         return -ENOMEM;
     transaction->buffered = buffered;
     if (mapped_reply) {
-        if (copy_from_user(&transaction->transaction_call, arg,
-                           sizeof(transaction->transaction_call))) {
+        if (node_mode) {
+            if (copy_from_user(&node_call, arg, sizeof(node_call))) {
+                error = -EFAULT;
+                goto free;
+            }
+            if (!node_call.target || node_call.reserved) {
+                error = -EINVAL;
+                goto free;
+            }
+            transaction->transaction_call = node_call.call;
+        } else if (copy_from_user(&transaction->transaction_call, arg,
+                                  sizeof(transaction->transaction_call))) {
             error = -EFAULT;
             goto free;
         }
@@ -354,7 +411,13 @@ static long mb_call(struct mb_context *context, void __user *arg,
     transaction->buffer_call.status = 0;
     init_waitqueue_head(&transaction->wait);
     mutex_lock(&mb_lock);
-    if (!server)
+    if (node_mode)
+        node = mb_find_node(node_call.target);
+    if (node_mode && server && server->mode != MB_SERVICE_NODE)
+        error = -EPROTOTYPE;
+    else if (node_mode && (!node || !node->owner))
+        error = -ENOENT;
+    else if (!server)
         error = -ENOTCONN;
     else if (server == context)
         error = -EDEADLK;
@@ -401,6 +464,17 @@ static long mb_call(struct mb_context *context, void __user *arg,
         transaction->receiver = server;
         transaction->buffer_request.size = transaction->buffer_call.size;
     }
+    if (node_mode) {
+        unsigned int slot = transaction->buffer_request.offset / MB_MAX_PAYLOAD;
+
+        transaction->node = node;
+        transaction->code = node_call.code;
+        node->transaction_refs++;
+        mutex_lock(&server->region.lock);
+        server->region.slots[slot].node = node;
+        node->slot_refs++;
+        mutex_unlock(&server->region.lock);
+    }
     context->active_calls++;
     context->exclusive_call = !mapped_reply;
     active = true;
@@ -431,15 +505,31 @@ static long mb_call(struct mb_context *context, void __user *arg,
     fixed_call = transaction->call;
     buffer_call = transaction->buffer_call;
     transaction_call = transaction->transaction_call;
+    if (transaction->node) {
+        transaction->node->transaction_refs--;
+        mb_node_reap(transaction->node);
+    }
     mutex_unlock(&mb_lock);
     /* After removal only this CALL owns the record; output owns local tokens. */
     kfree(transaction);
     transaction = NULL;
     if (!error) {
         if (mapped_reply) {
-            if (copy_to_user(arg, &transaction_call, sizeof(transaction_call))) {
-                if (transaction_call.token)
+            unsigned long missing;
+
+            if (node_mode) {
+                node_call.call = transaction_call;
+                missing = copy_to_user(arg, &node_call, sizeof(node_call));
+            } else {
+                missing = copy_to_user(arg, &transaction_call,
+                                       sizeof(transaction_call));
+            }
+            if (missing) {
+                if (transaction_call.token) {
+                    mutex_lock(&mb_lock);
                     mb_region_free(&context->region, transaction_call.token, true);
+                    mutex_unlock(&mb_lock);
+                }
                 error = -EFAULT;
             } else if (transaction_call.token) {
                 unsigned int slot = transaction_call.offset / MB_MAX_PAYLOAD;
@@ -489,10 +579,23 @@ static long mb_receive(struct mb_context *context, void __user *arg,
         list_for_each_entry(transaction, &transactions, link) {
             if (transaction->state != MB_TX_QUEUED)
                 continue;
-            if (buffered ? copy_to_user(arg, &transaction->buffer_request,
-                                        sizeof(transaction->buffer_request)) :
-                           copy_to_user(arg, &transaction->request,
-                                        sizeof(transaction->request))) {
+            if (mode == MB_SERVICE_NODE) {
+                struct mb_node_request request = {
+                    .buffer = transaction->buffer_request,
+                    .node = transaction->node->id,
+                    .cookie = transaction->node->cookie,
+                    .code = transaction->code,
+                };
+
+                error = copy_to_user(arg, &request, sizeof(request)) ? -EFAULT : 0;
+            } else {
+                error = (buffered ? copy_to_user(arg, &transaction->buffer_request,
+                                            sizeof(transaction->buffer_request)) :
+                               copy_to_user(arg, &transaction->request,
+                                            sizeof(transaction->request))) ?
+                        -EFAULT : 0;
+            }
+            if (error) {
                 mutex_unlock(&mb_lock);
                 return -EFAULT;
             }
@@ -532,7 +635,7 @@ static long mb_reply(struct mb_context *context, void __user *arg)
         error = -EPERM;
         goto unlock;
     }
-    if (context->mode == MB_SERVICE_TRANSACTION) {
+    if (context->mode == MB_SERVICE_TRANSACTION || context->mode == MB_SERVICE_NODE) {
         error = -EPROTOTYPE;
         goto unlock;
     }
@@ -553,7 +656,8 @@ unlock:
     return error;
 }
 
-static long mb_reply_transaction(struct mb_context *context, void __user *arg)
+static long mb_reply_transaction(struct mb_context *context, void __user *arg,
+                                 enum mb_service_mode mode)
 {
     struct mb_transaction_reply reply;
     struct mb_buffer_request response = { 0 };
@@ -570,7 +674,7 @@ static long mb_reply_transaction(struct mb_context *context, void __user *arg)
         error = -EPERM;
         goto unlock;
     }
-    if (context->mode != MB_SERVICE_TRANSACTION) {
+    if (context->mode != mode) {
         error = -EPROTOTYPE;
         goto unlock;
     }
@@ -607,6 +711,124 @@ unlock:
     return error;
 }
 
+static long mb_publish_node(struct mb_context *context, void __user *arg)
+{
+    struct mb_node_publish publish;
+    struct mb_node *node;
+    unsigned int owned = 0;
+    bool created = false;
+    int error = 0;
+
+    mutex_lock(&mb_lock);
+    if (context != server) {
+        error = -EPERM;
+        goto unlock;
+    }
+    if (context->mode != MB_SERVICE_NODE) {
+        error = -EPROTOTYPE;
+        goto unlock;
+    }
+    if (copy_from_user(&publish, arg, sizeof(publish))) {
+        error = -EFAULT;
+        goto unlock;
+    }
+    if (!publish.cookie) {
+        error = -EINVAL;
+        goto unlock;
+    }
+    list_for_each_entry(node, &nodes, link) {
+        if (node->owner != context)
+            continue;
+        owned++;
+        if (node->cookie == publish.cookie)
+            goto output;
+    }
+    if (owned >= MB_MAX_NODES) {
+        error = -EAGAIN;
+        goto unlock;
+    }
+    if (next_node == U64_MAX) {
+        error = -EOVERFLOW;
+        goto unlock;
+    }
+    node = kzalloc(sizeof(*node), GFP_KERNEL);
+    if (!node) {
+        error = -ENOMEM;
+        goto unlock;
+    }
+    node->id = ++next_node;
+    node->cookie = publish.cookie;
+    node->owner = context;
+    list_add_tail(&node->link, &nodes);
+    created = true;
+output:
+    publish.id = node->id;
+    if (copy_to_user(arg, &publish, sizeof(publish))) {
+        if (created) {
+            node->owner = NULL;
+            mb_node_reap(node);
+        }
+        error = -EFAULT;
+    }
+unlock:
+    mutex_unlock(&mb_lock);
+    return error;
+}
+
+static long mb_remove_node(struct mb_context *context, void __user *arg)
+{
+    struct mb_node *node;
+    u64 id;
+    int error;
+
+    mutex_lock(&mb_lock);
+    if (context != server) {
+        error = -EPERM;
+        goto unlock;
+    }
+    if (context->mode != MB_SERVICE_NODE) {
+        error = -EPROTOTYPE;
+        goto unlock;
+    }
+    if (copy_from_user(&id, arg, sizeof(id))) {
+        error = -EFAULT;
+        goto unlock;
+    }
+    node = mb_find_node(id);
+    if (!node || !node->owner)
+        error = -ENOENT;
+    else if (node->owner != context)
+        error = -EPERM;
+    else if (node->transaction_refs || node->slot_refs)
+        error = -EBUSY;
+    else {
+        node->owner = NULL;
+        mb_node_reap(node);
+        error = 0;
+    }
+unlock:
+    mutex_unlock(&mb_lock);
+    return error;
+}
+
+static long mb_node_stats(struct mb_context *context, void __user *arg)
+{
+    struct mb_node_stats stats = { 0 };
+    struct mb_node *node;
+
+    mutex_lock(&mb_lock);
+    list_for_each_entry(node, &nodes, link) {
+        stats.live_nodes++;
+        if (node->owner == context) {
+            stats.owned_nodes++;
+            stats.transaction_refs += node->transaction_refs;
+            stats.slot_refs += node->slot_refs;
+        }
+    }
+    mutex_unlock(&mb_lock);
+    return copy_to_user(arg, &stats, sizeof(stats)) ? -EFAULT : 0;
+}
+
 static long mb_ioctl(struct file *file, unsigned int command, unsigned long arg)
 {
     struct mb_context *context = file->private_data;
@@ -623,22 +845,24 @@ static long mb_ioctl(struct file *file, unsigned int command, unsigned long arg)
     case MB_IOC_QUERY:
         query.version = MB_ABI_VERSION;
         query.features = MB_FEATURE_RPC | MB_FEATURE_MMAP | MB_FEATURE_PARCEL |
-                         MB_FEATURE_TRANSACTION;
+                         MB_FEATURE_TRANSACTION | MB_FEATURE_NODE;
         query.open_id = context->id;
         query.live_contexts = atomic64_read(&live_contexts);
         return copy_to_user(user, &query, sizeof(query)) ? -EFAULT : 0;
     case MB_IOC_REGISTER:
     case MB_IOC_REGISTER_BUFFER:
     case MB_IOC_REGISTER_TRANSACTION:
+    case MB_IOC_REGISTER_NODE:
         mutex_lock(&mb_lock);
         error = server || context->active_calls ? -EBUSY : 0;
         if (!error && command != MB_IOC_REGISTER &&
             !atomic_read(&context->region.vmas))
             error = -ENXIO;
         if (!error) {
-            context->mode = command == MB_IOC_REGISTER ? MB_SERVICE_FIXED :
+            context->mode = command == MB_IOC_REGISTER_NODE ? MB_SERVICE_NODE :
+                (command == MB_IOC_REGISTER ? MB_SERVICE_FIXED :
                 (command == MB_IOC_REGISTER_BUFFER ? MB_SERVICE_BUFFER :
-                 MB_SERVICE_TRANSACTION);
+                 MB_SERVICE_TRANSACTION));
             server = context;
         }
         mutex_unlock(&mb_lock);
@@ -651,16 +875,28 @@ static long mb_ioctl(struct file *file, unsigned int command, unsigned long arg)
         return mb_call(context, user, MB_CALL_PARCEL);
     case MB_IOC_CALL_TRANSACTION:
         return mb_call(context, user, MB_CALL_TRANSACTION);
+    case MB_IOC_CALL_NODE:
+        return mb_call(context, user, MB_CALL_NODE);
     case MB_IOC_RECEIVE:
         return mb_receive(context, user, MB_SERVICE_FIXED);
     case MB_IOC_RECEIVE_BUFFER:
         return mb_receive(context, user, MB_SERVICE_BUFFER);
     case MB_IOC_RECEIVE_TRANSACTION:
         return mb_receive(context, user, MB_SERVICE_TRANSACTION);
+    case MB_IOC_RECEIVE_NODE:
+        return mb_receive(context, user, MB_SERVICE_NODE);
     case MB_IOC_REPLY:
         return mb_reply(context, user);
     case MB_IOC_REPLY_TRANSACTION:
-        return mb_reply_transaction(context, user);
+        return mb_reply_transaction(context, user, MB_SERVICE_TRANSACTION);
+    case MB_IOC_REPLY_NODE:
+        return mb_reply_transaction(context, user, MB_SERVICE_NODE);
+    case MB_IOC_PUBLISH_NODE:
+        return mb_publish_node(context, user);
+    case MB_IOC_REMOVE_NODE:
+        return mb_remove_node(context, user);
+    case MB_IOC_NODE_STATS:
+        return mb_node_stats(context, user);
     case MB_IOC_STATS:
         mutex_lock(&mb_lock);
         stats.queued = queued;
@@ -672,7 +908,10 @@ static long mb_ioctl(struct file *file, unsigned int command, unsigned long arg)
     case MB_IOC_FREE_BUFFER:
         if (copy_from_user(&token, user, sizeof(token)))
             return -EFAULT;
-        return mb_region_free(&context->region, token, false);
+        mutex_lock(&mb_lock);
+        error = mb_region_free(&context->region, token, false);
+        mutex_unlock(&mb_lock);
+        return error;
     case MB_IOC_BUFFER_STATS:
         mb_region_stats(&context->region, &buffer_stats);
         return copy_to_user(user, &buffer_stats, sizeof(buffer_stats)) ? -EFAULT : 0;
@@ -685,6 +924,7 @@ static int mb_release(struct inode *inode, struct file *file)
 {
     struct mb_context *context = file->private_data;
     struct mb_transaction *transaction;
+    struct mb_node *node, *next;
     unsigned int slot;
 
     mutex_lock(&mb_lock);
@@ -696,10 +936,17 @@ static int mb_release(struct inode *inode, struct file *file)
         }
         wake_up_all(&server_wait);
     }
-    mutex_unlock(&mb_lock);
     for (slot = 0; slot < MB_MAP_SLOTS; ++slot)
         if (context->region.slots[slot].token)
-            atomic64_dec(&live_slots);
+            mb_region_free(&context->region,
+                           context->region.slots[slot].token, true);
+    list_for_each_entry_safe(node, next, &nodes, link) {
+        if (node->owner != context)
+            continue;
+        node->owner = NULL;
+        mb_node_reap(node);
+    }
+    mutex_unlock(&mb_lock);
     if (context->region.data) {
         vfree(context->region.data);
         atomic64_dec(&live_regions);
@@ -746,6 +993,7 @@ static void __exit mb_exit(void)
     pr_info("mini_binder: device removed live_contexts=%lld requests=%u regions=%lld slots=%lld\n",
             atomic64_read(&live_contexts), live_requests,
             atomic64_read(&live_regions), atomic64_read(&live_slots));
+    pr_info("mini_binder: nodes_empty=%u\n", list_empty(&nodes));
 }
 
 module_init(mb_init);

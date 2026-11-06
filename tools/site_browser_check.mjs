@@ -19,7 +19,8 @@ const routes = ["", "chapters/p01-process/", "chapters/p02-syscalls/",
   "source/driver/mini_binder.c/", "site-guide/", "chapters/05-parcel/",
   "reports/m2-parcel-progress/", "labs/parcel-model/", "source/userspace/parcel.c/",
   "chapters/06-transactions/", "labs/transaction-model/", "design/transactions/",
-  "reports/m2-transactions-progress/"];
+  "reports/m2-transactions-progress/", "chapters/07-nodes/", "labs/node-model/",
+  "design/nodes/", "reports/m3-nodes-progress/"];
 try {
   for (const viewport of [{ width: 1365, height: 900 }, { width: 390, height: 844 }]) {
     const context = await browser.newContext({ viewport });
@@ -70,7 +71,7 @@ try {
       }));
       assert.ok(dimensions.scroll <= dimensions.width + 1, `${route}: horizontal page overflow`);
       results.push({ viewport, route, diagrams, ...dimensions });
-      if (["", "chapters/03-sync-rpc/", "chapters/04-mmap/", "chapters/05-parcel/", "chapters/06-transactions/", "labs/"].includes(route)) {
+      if (["", "chapters/03-sync-rpc/", "chapters/04-mmap/", "chapters/05-parcel/", "chapters/06-transactions/", "chapters/07-nodes/", "labs/"].includes(route)) {
         await page.screenshot({ path: `${output}/${viewport.width}-${route.replaceAll("/", "-") || "index"}.png`, fullPage: false, animations: "disabled" });
       }
     }

@@ -2,7 +2,7 @@ CC = cc
 CFLAGS = -std=c11 -O2 -g -Wall -Wextra -Werror -pedantic
 PROGRAMS = local_add fork_private thread_shared fork_status fork_failure socket_rpc
 SYSCALL_PROGRAMS = errno_write interrupt_wait
-MODEL_PROGRAMS = command_dispatch request_queue transactions
+MODEL_PROGRAMS = command_dispatch request_queue transactions nodes
 BINARIES = $(addprefix build/,$(PROGRAMS) $(SYSCALL_PROGRAMS) $(MODEL_PROGRAMS)) build/mapping build/parcel
 
 .PHONY: all test kernel busybox rootfs vm-test vm-test-kvm vm-runner-test clean

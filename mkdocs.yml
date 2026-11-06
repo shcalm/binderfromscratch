@@ -67,8 +67,9 @@ nav:
       - 04 mmap 接收映射: chapters/04-mmap.md
       - 05 Parcel 请求: chapters/05-parcel.md
       - 06 Transaction 与双向缓冲: chapters/06-transactions.md
-  - 第三篇 · 对象与服务 · 未完成:
-      - 07–09 章路线与任务: routes/part-3.md
+  - 第三篇 · 对象与服务 · 开发中:
+      - 07 Node 对象身份: chapters/07-nodes.md
+      - 08–09 章路线与任务: routes/part-3.md
   - 第四篇 · 线程与生命周期 · 未完成:
       - 10–12 章路线与任务: routes/part-4.md
   - 第五篇 · 安全与稳定性 · 未完成:
@@ -83,6 +84,7 @@ nav:
       - 接收映射模型: labs/mapping-model.md
       - Parcel 编解码模型: labs/parcel-model.md
       - 事务状态与资源模型: labs/transaction-model.md
+      - Node 身份与持有模型: labs/node-model.md
       - 代码版本索引: reference/code-versions.md
       - 源码阅读: source/index.md
   - 参考与进度:
@@ -96,6 +98,7 @@ nav:
       - 接收区设计: design/receive-region.md
       - Parcel 格式设计: design/parcel-format.md
       - 事务与双向缓冲设计: design/transactions.md
+      - Node 对象身份设计: design/nodes.md
       - 全书路线: plans/roadmap.md
       - 任务总表: plans/task-backlog.md
       - 第一阶段计划: plans/phase-01.md
@@ -103,5 +106,6 @@ nav:
       - 第 04 章映射实测报告: reports/m2-mapping-progress.md
       - 第 05 章 Parcel 实测报告: reports/m2-parcel-progress.md
       - 第 06 章事务实测报告: reports/m2-transactions-progress.md
+      - 第 07 章 Node 实测报告: reports/m3-nodes-progress.md
       - 修订与勘误: reference/changes.md
       - 本地构建与预览: site-guide.md

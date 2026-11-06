@@ -57,7 +57,7 @@ def on_config(config):
 
 def on_files(files, config):
     source_pages.clear()
-    parts = ((3, "第三篇：对象与服务", "07–09"),
+    parts = ((3, "第三篇：对象与服务", "08–09"),
              (4, "第四篇：线程与生命周期", "10–12"),
              (5, "第五篇：安全与稳定性", "13–15"),
              (6, "第六篇：真实 Binder", "16–18"))
