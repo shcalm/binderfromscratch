@@ -21,6 +21,8 @@ cc -static -pthread -std=c11 -O2 -Wall -Wextra -Werror -I"$root/include/uapi" -I
     "$root/tests/kernel/transaction_test.c" "$root/userspace/parcel.c" -o "$root/build/transaction_test"
 cc -static -pthread -std=c11 -O2 -Wall -Wextra -Werror -I"$root/include/uapi" -I"$root/userspace" \
     "$root/tests/kernel/node_test.c" "$root/userspace/parcel.c" -o "$root/build/node_test"
+cc -static -pthread -std=c11 -O2 -Wall -Wextra -Werror -I"$root/include/uapi" \
+    "$root/tests/kernel/ref_test.c" -o "$root/build/ref_test"
 for program in add_server add_client; do
     cc -static -std=c11 -O2 -Wall -Wextra -Werror -I"$root/include/uapi" \
         "$root/userspace/$program.c" -o "$root/build/$program"
@@ -46,6 +48,7 @@ cp "$root/build/mapping_test" "$image_dir/mapping_test"
 cp "$root/build/parcel_test" "$image_dir/parcel_test"
 cp "$root/build/transaction_test" "$image_dir/transaction_test"
 cp "$root/build/node_test" "$image_dir/node_test"
+cp "$root/build/ref_test" "$image_dir/ref_test"
 cp "$root/build/add_server" "$root/build/add_client" "$image_dir/"
 cp "$root/build/binder_probe" "$image_dir/binder_probe"
 (cd "$image_dir" && find . -print0 | LC_ALL=C sort -z | cpio --null --create --format=newc --owner=0:0) | gzip -n > "$root/build/initramfs.cpio.gz"

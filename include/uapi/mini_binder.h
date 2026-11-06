@@ -11,7 +11,9 @@
 #define MB_FEATURE_PARCEL 4
 #define MB_FEATURE_TRANSACTION 8
 #define MB_FEATURE_NODE 16
+#define MB_FEATURE_REF 32
 #define MB_MAX_NODES 16
+#define MB_MAX_REFS 32
 #define MB_MAX_REQUESTS 64
 #define MB_MAP_BYTES 65536
 #define MB_MAP_SLOTS 16
@@ -164,5 +166,89 @@ struct mb_node_stats {
 #define MB_IOC_RECEIVE_NODE _IOR('m', 20, struct mb_node_request)
 #define MB_IOC_REPLY_NODE _IOW('m', 21, struct mb_transaction_reply)
 #define MB_IOC_NODE_STATS _IOR('m', 22, struct mb_node_stats)
+
+#define MB_OBJECT_LOCAL 1
+#define MB_OBJECT_HANDLE 2
+
+struct mb_ref_parcel {
+    __u64 data;
+    __u64 offsets;
+    __u32 size;
+    __u32 offsets_count;
+} __attribute__((aligned(8)));
+
+struct mb_ref_buffer {
+    struct mb_buffer_request buffer;
+    __u32 offsets_count;
+    __u32 reserved;
+    __u32 offsets[MB_MAX_OBJECTS];
+} __attribute__((aligned(8)));
+
+struct mb_ref_export {
+    __u64 recipient;
+    struct mb_ref_parcel parcel;
+    __u64 grant;
+} __attribute__((aligned(8)));
+
+struct mb_ref_import {
+    __u64 grant;
+    struct mb_ref_buffer buffer;
+} __attribute__((aligned(8)));
+
+struct mb_ref_call {
+    __u32 target;
+    __u32 code;
+    struct mb_ref_parcel request;
+    struct mb_ref_buffer reply;
+    __s32 status;
+    __u32 reserved;
+} __attribute__((aligned(8)));
+
+struct mb_ref_request {
+    struct mb_ref_buffer buffer;
+    __u64 node;
+    __u64 cookie;
+    __u32 code;
+    __u32 reserved;
+} __attribute__((aligned(8)));
+
+struct mb_ref_reply {
+    __u64 id;
+    struct mb_ref_parcel parcel;
+    __s32 status;
+    __u32 reserved;
+} __attribute__((aligned(8)));
+
+struct mb_ref_stats {
+    __u64 global_ref_entries;
+    __u64 global_user_refs;
+    __u64 global_buffer_refs;
+    __u64 global_local_objects;
+    __u64 global_pending_slots;
+    __u64 current_ref_entries;
+    __u64 current_user_refs;
+    __u64 current_buffer_refs;
+    __u64 current_local_objects;
+    __u64 current_pending_slots;
+} __attribute__((aligned(8)));
+
+/* Payload format is little endian; encode/decode bytes explicitly. */
+struct mb_ref_object {
+    __le32 type;
+    __le32 flags;
+    __le64 value;
+    __le64 cookie;
+} __attribute__((aligned(8)));
+
+#define MB_IOC_REGISTER_REF _IO('m', 23)
+#define MB_IOC_ENABLE_REF _IO('m', 24)
+#define MB_IOC_EXPORT_REF _IOWR('m', 25, struct mb_ref_export)
+#define MB_IOC_IMPORT_REF _IOWR('m', 26, struct mb_ref_import)
+#define MB_IOC_ACQUIRE_REF _IOW('m', 27, __u32)
+#define MB_IOC_RELEASE_REF _IOW('m', 28, __u32)
+#define MB_IOC_CALL_REF _IOWR('m', 29, struct mb_ref_call)
+#define MB_IOC_RECEIVE_REF _IOR('m', 30, struct mb_ref_request)
+#define MB_IOC_REPLY_REF _IOW('m', 31, struct mb_ref_reply)
+#define MB_IOC_REF_STATS _IOR('m', 32, struct mb_ref_stats)
 
 #endif

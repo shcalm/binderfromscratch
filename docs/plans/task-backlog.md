@@ -195,13 +195,13 @@ P03 在阅读顺序上位于 P04 之前，但执行时先准备 P04 的环境，
 
 ### 第 08 章｜为什么需要 Binder Ref？
 
-- [ ] C08-01 先运行“B 的 Handle 数字直接给 C”的反例，比较全局命名与进程私有引用；讨论权限和编号复用代价。
-- [ ] C08-02 用 C 模型建立 A 的 Node 与 B/C 的引用表，演示相同数字可指向不同对象、不同数字可指向同一对象。
-- [ ] C08-03 规定对象/Handle 描述符转换、引用获取/释放、无效句柄与部分转换失败的回滚规则。
-- [ ] C08-04 实现 Ref 表、引用计数与发送端到接收端转换；接收者是对象拥有者时也定义正确的表示。
-- [ ] C08-05 实现 A 发布、B 获取并传给 C、C 调用 A 的三进程实验及可观察引用变更日志。
-- [ ] C08-06 测试伪造 Handle、目标退出、重复传递、在途引用、释放后复用、多个对象转换中途失败。
-- [ ] C08-07 对照 binder_ref 和 BINDER_TYPE_BINDER/HANDLE 的实际转换路径，区分可持有引用与服务方法授权。
+- [x] C08-01 先运行“B 的 Handle 数字直接给 C”的反例，比较全局命名与进程私有引用；讨论权限和编号复用代价；证据：模型 raw 和 VM 三进程 C1 调 Y、C2 EBADF，第 08 章方案表。
+- [x] C08-02 用 C 模型建立 A 的 Node 与 B/C 的引用表，演示相同数字可指向不同对象、不同数字可指向同一对象；证据：`examples/models/references.c`、26 项独立 oracle、18 个关闭顺序与模型手册。
+- [x] C08-03 规定对象/Handle 描述符转换、引用获取/释放、无效句柄与部分转换失败的回滚规则；证据：`docs/design/references.md`，24 字节对象、两种 Ref 单位、slot 内核账本、pending 授权提交点及错误优先级。
+- [x] C08-04 实现 Ref 表、引用计数与发送端到接收端转换；接收者是对象拥有者时也定义正确的表示；证据：REF 独立模式、EXPORT/IMPORT 引导旁路、CALL/REPLY 对象转换、owner LOCAL，完整 TCG/KVM 通过。
+- [x] C08-05 实现 A 发布、B 获取并传给 C、C 调用 A 的三进程实验及可观察引用变更日志；证据：`tests/kernel/ref_test.c`，A/B/C 独立 open，X=2/Y=102 真实 counter，10 行 REF_TRACE 记录实际 grant/Handle/单位变更。
+- [x] C08-06 测试伪造 Handle、目标退出、重复传递、在途引用、释放后复用、多个对象转换中途失败；证据：Ref 报告，含 32 条满表、新旧 Ref 回滚、坏/部分 REPLY 复制、queued/delivered 取消与 owner 退出。并发 recipient release、REF 反序同 fd 和 Client SIGKILL 未专项，未声称穷举。
+- [x] C08-07 对照 binder_ref 和 BINDER_TYPE_BINDER/HANDLE 的实际转换路径，区分可持有引用与服务方法授权；证据：第 08 章固定 v6.6 表与固定 AOSP flatten/unflatten，明确 mini grant、LOCAL id/cookie 与强弱通知差异。
 - [ ] C08-08 编写正文、逐步转换图与实验报告；确认没有把跨进程引用简化成直接复制整数。
 
 ### 第 09 章｜从零设计 ServiceManager
@@ -354,10 +354,10 @@ P03 在阅读顺序上位于 P04 之前，但执行时先准备 P04 的环境，
 
 ## 15. 当前完成情况与下一步
 
-当前已有 P01–P04、第 01–07 章正文、普通 C 模型、75 项用户态验收、固定 Linux 6.6/BusyBox 1.36.1 构建路径，以及 TCG/KVM 下的设备、同步 RPC、只读映射、Parcel、双向事务和多对象 Node 验收。详见 [M0/M1 实现与验收记录](../reports/m0-m1-progress.md)、[映射报告](../reports/m2-mapping-progress.md)、[Parcel 报告](../reports/m2-parcel-progress.md)、[事务报告](../reports/m2-transactions-progress.md)及[Node 报告](../reports/m3-nodes-progress.md)。本地 HTML 站点已经能阅读现有正文；第 08–18 章仍是路线入口。原始实验日志在本地 `artifacts/`，报告记录校验值；它们还没有作为外部实验包发布。
+当前已有 P01–P04、第 01–08 章正文、普通 C 模型、101 项用户态验收、固定 Linux 6.6/BusyBox 1.36.1 构建路径，以及 TCG/KVM 下的设备、同步 RPC、只读映射、Parcel、双向事务、多对象 Node 和私有 Ref/对象转换验收。详见 [M0/M1 实现与验收记录](../reports/m0-m1-progress.md)、[映射报告](../reports/m2-mapping-progress.md)、[Parcel 报告](../reports/m2-parcel-progress.md)、[事务报告](../reports/m2-transactions-progress.md)、[Node 报告](../reports/m3-nodes-progress.md)及[Ref 报告](../reports/m3-references-progress.md)。本地 HTML 站点已经能阅读现有正文；第 09–18 章仍是路线入口。原始实验日志在本地 `artifacts/`，报告记录校验值；它们还没有作为外部实验包发布。
 
 勾选代表单项交付物，不表示整章或 M0/M1 已发布。G-08、各章末尾验收、P04 预构建发布、R-02 章节标签仍有缺口；独立干净重建与 C02 初始化回滚已新增证据。E-07 至 E-14 只有局部能力，没有提前勾选全系统验收。
 
-下一批顺序：固定 C07 开发快照及 diff → 第 08 章私有 Handle 反例与 Ref 表 → 对象描述符转换、获取/释放和失败回滚设计 → 三进程引用传递及调用验收。同时继续补齐 M0/M1/M2 与网站的未关闭门槛。未完成章节发布之前可做下一阶段可行性验证，不能因此抹去前一阶段待验收项。M3–M6、完整可视化和电子书均继续按本表执行。
+**暂停位置（2026-11-06）：** 按用户要求，收尾第 08 章开发检查点后暂停，供先行阅读和反馈。当前勾选 93/216，`dev-c08-20261106` 固定本次代码与文档；第 09 章尚未实施。后续仅在用户要求继续时推进 ServiceManager/多 owner，或根据阅读反馈先修教学内容。M0/M1/M2 与网站的未关闭门槛、C08-08 正式整章验收和电子书任务均保留；开发快照不能替代这些门槛。
 
 后续每次推进时先从本表选择任务，完成后更新证据和勾选。新增问题按所属章节追加；阶段依赖变化同时更新路线图。不能以“代码能运行”代替设计解释、实验和 Android 对照三项验收。

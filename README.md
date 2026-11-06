@@ -26,6 +26,7 @@
 - [第 05 章：让双方一致地解释字节](docs/chapters/05-parcel.md)。
 - [第 06 章：让一次调用只得到自己的回复](docs/chapters/06-transactions.md)。
 - [第 07 章：同一个方法，究竟调用哪个对象](docs/chapters/07-nodes.md)。
+- [第 08 章：把引用交给另一个进程，而不是复制一个整数](docs/chapters/08-references.md)。
 - [Android Binder 源码基线](docs/reference/android-binder.md)：版本、源码入口与对照边界。
 
 ## 运行当前实验
@@ -39,7 +40,7 @@ make test
 ./build/socket_rpc 1 2
 ```
 
-`make test` 编译入门、系统调用、映射及 C 模型程序，当前执行 75 项验收，包含共用 Parcel 库、独立编码 oracle、事务和 Node 模型。各实验有截止时间；这不是 RPC 自身的超时协议。
+`make test` 编译入门、系统调用、映射及 C 模型程序，当前执行 101 项验收，包含共用 Parcel 库、独立编码 oracle、事务、Node 和 Ref 模型。各实验有截止时间；这不是 RPC 自身的超时协议。
 
 运行驱动实验还需内核构建依赖和 QEMU，详见 P04：
 
@@ -55,7 +56,9 @@ make vm-runner-test
 
 ## 当前进度
 
-已有全书 22 章路线和 216 项任务分解，P01–P04、第 01–07 章正文，以及查询设备、同步 RPC、只读映射接收、Parcel 请求、双向事务、多对象 Node 和 QEMU 验收路径。[映射](docs/reports/m2-mapping-progress.md)、[Parcel](docs/reports/m2-parcel-progress.md)、[事务](docs/reports/m2-transactions-progress.md)和[Node 报告](docs/reports/m3-nodes-progress.md)记录各次增量、实验和边界。正式章节发布、独立初学者复现仍待完成。当前没有私有 Ref/Handle 等第 08–18 章后续能力，电子书尚未交付。
+已有全书 22 章路线和 216 项任务分解（93 项勾选），P01–P04、第 01–08 章正文，以及查询设备、同步 RPC、只读映射接收、Parcel、双向事务、多对象 Node、私有 Ref/对象转换和 QEMU 验收路径。[映射](docs/reports/m2-mapping-progress.md)、[Parcel](docs/reports/m2-parcel-progress.md)、[事务](docs/reports/m2-transactions-progress.md)、[Node](docs/reports/m3-nodes-progress.md)和[Ref 报告](docs/reports/m3-references-progress.md)记录增量、实验及边界。正式章节发布、独立初学者复现仍待完成。第 09–18 章和电子书尚未交付。
+
+按用户要求，本轮在 `dev-c08-20261106` 开发检查点暂停，先供阅读反馈；没有开始第 09 章。
 
 本地 HTML 阅读站点的构建与预览见[网站指南](docs/site-guide.md)，未完成章节通过路线入口标记，代码和正文均为开发版本。
 
