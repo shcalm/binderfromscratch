@@ -37,9 +37,21 @@ insmod /mini_hello.ko || fail 'reload after failure'
 rmmod mini_hello || fail 'final rmmod'
 dmesg | grep -q 'mini_hello: init rollback' || fail 'missing rollback evidence'
 dmesg | grep -q 'mini_hello: exit ok' || fail 'missing exit evidence'
+if insmod /mini_binder.ko fail_after_register=1; then
+    fail 'device failure initialization unexpectedly succeeded'
+fi
+[ ! -e /dev/mini_binder ] || fail 'device survived failed initialization'
+if grep -q '^mini_binder ' /proc/modules; then
+    fail 'failed device module remained registered'
+fi
+dmesg | grep -q 'mini_binder: initialization rollback after register' || fail 'missing device rollback evidence'
+insmod /mini_binder.ko fail_region_alloc=1 || fail 'allocation injection setup'
+/mapping_test --allocation-failure || fail 'mapping allocation rollback'
+rmmod mini_binder || fail 'allocation injection cleanup'
 insmod /mini_binder.ko || fail 'device registration'
 /device_test || fail 'device ABI assertions'
 /rpc_test || fail 'synchronous RPC assertions'
+/mapping_test || fail 'mapped receive assertions'
 /add_server 3 >/tmp/add_server.log 2>&1 &
 server_pid=$!
 while ! grep -qx READY /tmp/add_server.log; do

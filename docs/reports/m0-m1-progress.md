@@ -88,4 +88,33 @@ bash tools/qemu/debug-boot.sh
 - E-07 至 E-14：当前只有 RPC/上下文的部分日志、计数、同步和复制故障覆盖；未来缓冲区/Node/Ref/FD/通知、调试内核、压力与性能方法仍需逐阶段补齐。
 - W/V/R：网页渲染、可视化、正式阶段发布和电子书尚未交付。
 
-当前可以继续验证 M2 设计，不应据此把以上待验收项勾选为完成。
+当前可以继续验证 M2 设计，不应据此把以上待验收项勾选为完成。以下补充记录会明确关闭其中的具体缺口，原始快照与日志保持不变。
+
+## 8. 后续补充：独立干净构建与设备回滚
+
+同步 RPC 开发快照现固定为 `cfd7f42`，可用 `git diff 6406d8d cfd7f42 -- driver/mini_binder.c include/uapi/mini_binder.h` 阅读第 02→03 章变化。正式发布标签仍未建立。
+
+在 `build/clean-replay` 创建该提交的独立 checkout，只复制并重新校验两份原始下载归档，不复用源码目录、完整配置、编译输出、模块、BusyBox 或 rootfs。实际运行：
+
+```sh
+git worktree add --detach build/clean-replay cfd7f42
+mkdir -p build/clean-replay/build/kernel build/clean-replay/build/busybox
+cp build/kernel/linux-6.6.tar.xz build/clean-replay/build/kernel/
+cp build/busybox/busybox-1.36.1.tar.bz2 build/clean-replay/build/busybox/
+cd build/clean-replay
+bash tools/kernel/build.sh
+bash tools/qemu/build-busybox.sh
+bash tools/qemu/build-rootfs.sh
+ACCEL=tcg bash tools/qemu/run.sh
+ACCEL=kvm bash tools/qemu/run.sh
+```
+
+全部构建退出 0，TCG/KVM 均完成模块正常/主动失败/重载、设备、RPC、独立演示与最终零计数。该证据关闭“同一宿主上，从干净源码/输出目录重建”的缺口，不等于在新安装的宿主或真实初学者环境验证。
+
+干净构建内核 SHA-256 为 `d8d3c0d6c7e4a674588e6890eec8ab9aca213846d85054f64ead77042c1cc2bd`，完整内核配置与上表相同。BusyBox 为 `59f839dfdfc15368b173d6f273923981b06c303930e784b8d521f5ed427eb58a`，initramfs 为 `fbe16be3109008c91372052b41b9693047cdf1b9f8a5022391104805dbb6c114`。BusyBox 配置文件哈希与上表不同，实际 diff 只有自动生成时间注释；这恰好说明文件哈希、配置语义与功能等价是不同判断。
+
+归档日志 `artifacts/evidence/clean-replay-tcg.log` 的 SHA-256 为 `e5eb889f26e7a8dfb96453bd9a02ae8b19d0d82e33b2c92fdbeca1eddd6ec021`，KVM 为 `c880a82235d2c0eda8d550aa17af60fb6b886264087c404ec9ba66d9525fd768`。
+
+主线在该快照之后补入 `fail_after_register=1` 模块参数：先注册 miscdevice，再主动撤销并返回 EIO。VM 验证装载失败后设备节点和 `/proc/modules` 条目均不存在，且出现本次 rollback 日志；随后正常加载，设备/RPC/独立演示仍通过。先运行新测试对旧实现观察到失败，再加入回滚实现通过。两次宿主完整记录为 `artifacts/device-rollback-red.txt`（SHA-256 `4fe63a41cf3277a0cee3d75f632fc96e58e4add311cb247524dc9c4115a03441`）和 `artifacts/device-rollback-green.txt`（`1a90a300fb369fd9472f132706960150cf2f201d9f652b12328c59b1a95b34c1`）。
+
+这验证的是“注册成功后后续初始化失败”的回滚，不是让 misc_register 本身实际返回失败，也不是物理内存耗尽。后续 mmap 版本继续保留此检查；具体镜像不能与前面历史 RPC 哈希混用。

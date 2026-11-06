@@ -3,7 +3,7 @@ CFLAGS = -std=c11 -O2 -g -Wall -Wextra -Werror -pedantic
 PROGRAMS = local_add fork_private thread_shared fork_status fork_failure socket_rpc
 SYSCALL_PROGRAMS = errno_write interrupt_wait
 MODEL_PROGRAMS = command_dispatch request_queue
-BINARIES = $(addprefix build/,$(PROGRAMS) $(SYSCALL_PROGRAMS) $(MODEL_PROGRAMS))
+BINARIES = $(addprefix build/,$(PROGRAMS) $(SYSCALL_PROGRAMS) $(MODEL_PROGRAMS)) build/mapping
 
 .PHONY: all test kernel busybox rootfs vm-test vm-test-kvm vm-runner-test clean
 all: $(BINARIES)
@@ -21,6 +21,9 @@ $(addprefix build/,$(SYSCALL_PROGRAMS)): build/%: examples/syscalls/%.c | build
 	$(CC) $(CPPFLAGS) $(CFLAGS) $< $(LDFLAGS) -o $@
 
 $(addprefix build/,$(MODEL_PROGRAMS)): build/%: examples/models/%.c | build
+	$(CC) $(CPPFLAGS) $(CFLAGS) $< $(LDFLAGS) -o $@
+
+build/mapping: examples/memory/mapping.c | build
 	$(CC) $(CPPFLAGS) $(CFLAGS) $< $(LDFLAGS) -o $@
 
 test: all

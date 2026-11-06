@@ -1,5 +1,7 @@
 # 第 03 章｜实现第一个同步 RPC
 
+本章同步 RPC 开发快照固定为 `cfd7f42`。后续主线会增加 mmap 等能力；阅读旧版驱动及差异请按[版本索引](../reference/code-versions.md)执行 `git show` / `git diff`。该快照有本机实验记录，但还不是正式发布标签。
+
 第 02 章的查询由驱动直接回答。现在改成两个独立程序：Server 注册后等待请求，在用户态计算；Client 把参数交给驱动，阻塞等待自己的结果。新增问题不是“怎样算加法”，而是请求放在哪里、谁领取、回复交给谁、失败后谁回收。
 
 源码入口是 [driver/mini_binder.c](../../driver/mini_binder.c)、[教学 UAPI](../../include/uapi/mini_binder.h)、[add_server.c](../../userspace/add_server.c) 和 [add_client.c](../../userspace/add_client.c)，设计记录见[最小 RPC 决策](../design/minimal-rpc.md)。这是继续演进的开发版，具体测试版本与日志见[阶段报告](../reports/m0-m1-progress.md)，不把工作区最新代码称为已经发布的章节标签。

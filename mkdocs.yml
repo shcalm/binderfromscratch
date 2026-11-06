@@ -1,0 +1,100 @@
+site_name: 从零设计 Binder
+site_description: 从问题、方案与实验推导教学 IPC 驱动
+docs_dir: docs
+site_dir: site
+use_directory_urls: true
+strict: true
+theme:
+  name: material
+  custom_dir: tools/site_theme
+  language: zh
+  font: false
+  palette:
+    primary: teal
+    accent: deep orange
+  features:
+    - navigation.sections
+    - navigation.footer
+    - navigation.top
+    - search.highlight
+    - search.suggest
+    - content.code.copy
+plugins:
+  - search:
+      lang: zh
+hooks:
+  - tools/site_hooks.py
+extra_css:
+  - assets/site.css
+markdown_extensions:
+  - admonition
+  - attr_list
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.arithmatex:
+      generic: true
+extra_javascript:
+  - assets/math.js
+  - assets/vendor/mathjax-3.2.2-tex-svg.js
+validation:
+  nav:
+    omitted_files: ignore
+  links:
+    not_found: warn
+    unrecognized_links: warn
+    anchors: warn
+nav:
+  - 阅读入口: index.md
+  - 预备篇 · 初稿:
+      - P01 从 main.c 到 Linux 进程: chapters/p01-process.md
+      - P02 从函数调用到系统调用: chapters/p02-syscalls.md
+      - P03 第一个 Linux 内核模块: chapters/p03-module.md
+      - P04 搭建 Linux 内核实验环境: chapters/p04-environment.md
+  - 第一篇 · 同步 RPC · 初稿:
+      - 01 为什么需要 Binder: chapters/01-why-binder.md
+      - 02 设计第一个字符设备驱动: chapters/02-character-device.md
+      - 03 实现第一个同步 RPC: chapters/03-sync-rpc.md
+  - 第二篇 · 数据与事务 · 开发中:
+      - 04 mmap 接收映射: chapters/04-mmap.md
+      - 05–06 章路线与任务: routes/part-2.md
+  - 第三篇 · 对象与服务 · 未完成:
+      - 07–09 章路线与任务: routes/part-3.md
+  - 第四篇 · 线程与生命周期 · 未完成:
+      - 10–12 章路线与任务: routes/part-4.md
+  - 第五篇 · 安全与稳定性 · 未完成:
+      - 13–15 章路线与任务: routes/part-5.md
+  - 第六篇 · 真实 Binder · 未完成:
+      - 16–18 章路线与任务: routes/part-6.md
+  - 实验与代码:
+      - 实验入口: labs/index.md
+      - 进程与 RPC 边界: labs/intro-boundaries.md
+      - 系统调用: labs/syscalls.md
+      - 请求队列模型: labs/queue-model.md
+      - 接收映射模型: labs/mapping-model.md
+      - 代码版本索引: reference/code-versions.md
+      - 源码阅读: source/index.md
+  - 参考与进度:
+      - 术语表: reference/glossary.md
+      - Android 源码基线: reference/android-binder.md
+      - AOSP 用户态基线: reference/aosp-userspace.md
+      - 范围声明: design/scope.md
+      - 教学规范: design/teaching-contract.md
+      - 字符设备 ABI: design/device-abi.md
+      - 同步 RPC 设计: design/minimal-rpc.md
+      - 接收区设计: design/receive-region.md
+      - 全书路线: plans/roadmap.md
+      - 任务总表: plans/task-backlog.md
+      - 第一阶段计划: plans/phase-01.md
+      - 阶段实测报告: reports/m0-m1-progress.md
+      - 第 04 章映射实测报告: reports/m2-mapping-progress.md
+      - 修订与勘误: reference/changes.md
+      - 本地构建与预览: site-guide.md

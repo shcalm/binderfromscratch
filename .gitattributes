@@ -1,0 +1,2 @@
+# Preserve upstream vendor bundles byte for byte; manifest.json pins hashes.
+docs/assets/vendor/*.js -whitespace

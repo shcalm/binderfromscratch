@@ -22,6 +22,7 @@
 - [第 01 章：为什么需要 Binder？](docs/chapters/01-why-binder.md)：用现有 IPC 实现一次 RPC，再讨论专用驱动的价值。
 - [第 02 章：设计第一个字符设备驱动](docs/chapters/02-character-device.md)。
 - [第 03 章：实现第一个同步 RPC](docs/chapters/03-sync-rpc.md)。
+- [第 04 章：把请求放进只读接收区](docs/chapters/04-mmap.md)。
 - [Android Binder 源码基线](docs/reference/android-binder.md)：版本、源码入口与对照边界。
 
 ## 运行当前实验
@@ -35,7 +36,7 @@ make test
 ./build/socket_rpc 1 2
 ```
 
-`make test` 编译入门、系统调用及 C 模型程序，当前执行 27 项验收。各实验有截止时间；这不是 RPC 自身的超时协议。
+`make test` 编译入门、系统调用、映射及 C 模型程序，当前执行 32 项验收。各实验有截止时间；这不是 RPC 自身的超时协议。
 
 运行驱动实验还需内核构建依赖和 QEMU，详见 P04：
 
@@ -51,6 +52,8 @@ make vm-runner-test
 
 ## 当前进度
 
-已有全书 22 章路线和 216 项任务分解，P01–P04、第 01–03 章正文，以及查询设备、同步 RPC 和 QEMU 验收路径。开发版已运行多 Client、错误输入、中断、服务退出与资源回收实验；正式章节发布、独立初学者复现仍待完成。当前尚无 mmap、Parcel、Node/Ref 等第 04–18 章能力，HTML 网站和电子书尚未交付。
+已有全书 22 章路线和 216 项任务分解，P01–P04、第 01–04 章正文，以及查询设备、同步 RPC、只读映射接收和 QEMU 验收路径。[映射阶段报告](docs/reports/m2-mapping-progress.md)记录权限、16 槽耗尽、显式释放、取消与 VMA 生命周期实验。正式章节发布、独立初学者复现仍待完成。当前尚无 Parcel、Node/Ref 等第 05–18 章能力，电子书尚未交付。
+
+本地 HTML 阅读站点的构建与预览见[网站指南](docs/site-guide.md)，未完成章节通过路线入口标记，代码和正文均为开发版本。
 
 代码位于 `examples/`、`driver/` 和 `userspace/`，验收位于 `tests/`。章节持续演进同一个驱动；已提供[代码版本索引](docs/reference/code-versions.md)，正式阶段发布时采用不可移动的版本标签。

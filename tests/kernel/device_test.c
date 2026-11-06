@@ -68,6 +68,13 @@ int main(void)
     CHECK(waitpid(child, &status, 0) == child);
     CHECK(WIFEXITED(status) && WEXITSTATUS(status) == 0);
     CHECK(close(alias) == 0);
+    {
+        const unsigned char *region = mmap(NULL, MB_MAP_BYTES, PROT_READ,
+                                           MAP_SHARED, a, 0);
+        CHECK(region != MAP_FAILED);
+        CHECK(region[0] == 0 && region[MB_MAP_BYTES - 1] == 0);
+        CHECK(munmap((void *)region, MB_MAP_BYTES) == 0);
+    }
     CHECK(ioctl(a, MB_IOC_QUERY, &final) == 0);
     CHECK(final.live_contexts == first.live_contexts);
     CHECK(close(a) == 0);

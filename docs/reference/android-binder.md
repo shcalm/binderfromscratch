@@ -4,7 +4,7 @@
 
 当前驱动阅读基线：上游 Linux **v6.6** 标签，`drivers/android/` 与 `include/uapi/linux/android/binder.h`。2026-11-06 核查了协议头，以及 binder.c 中本章涉及的事务入口和 BR 命令选择位置。
 
-这不是 Android 平台的统一版本。运行基线也使用 Linux 6.6，已在 QEMU 的 TCG/KVM 中验证模块、mini-binder RPC 及真实 Binder 协议探测，证据见[阶段报告](../reports/m0-m1-progress.md)；这不等于完整 Android Binder RPC。Android 设备可能使用不同内核及厂商变更。后续涉及 libbinder、Parcel、servicemanager 时，需要另行锁定 AOSP 标签并核查，不把 Linux 内核版本当作用户态平台版本。
+这不是 Android 平台的统一版本。运行基线也使用 Linux 6.6，已在 QEMU 的 TCG/KVM 中验证模块、mini-binder RPC 及真实 Binder 协议探测，证据见[阶段报告](../reports/m0-m1-progress.md)；这不等于完整 Android Binder RPC。Android 设备可能使用不同内核及厂商变更。用户态阅读另行固定 [AOSP Android 14 基线](aosp-userspace.md)，不能把 Linux 内核版本当作用户态平台版本，也不把阅读等同于完整 Android 构建验收。
 
 | 来源 | 用途 |
 | --- | --- |
