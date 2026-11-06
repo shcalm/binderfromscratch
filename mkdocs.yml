@@ -1,5 +1,9 @@
 site_name: 从零设计 Binder
 site_description: 从问题、方案与实验推导教学 IPC 驱动
+site_url: https://shcalm.github.io/binderfromscratch/
+repo_url: https://github.com/shcalm/binderfromscratch
+repo_name: shcalm/binderfromscratch
+edit_uri: edit/main/docs/
 docs_dir: docs
 site_dir: site
 use_directory_urls: true

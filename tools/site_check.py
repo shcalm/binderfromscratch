@@ -14,10 +14,13 @@ class Page(HTMLParser):
         super().__init__(convert_charrefs=True)
         self.targets = set()
         self.links = []
+        self.canonical = ""
         self.feed(text)
 
     def handle_starttag(self, tag, attributes):
         attrs = dict(attributes)
+        if tag == "link" and attrs.get("rel") == "canonical":
+            self.canonical = attrs.get("href", "")
         for key in ("id", "name"):
             if attrs.get(key):
                 self.targets.add(attrs[key])
@@ -33,6 +36,8 @@ def main():
     root = args.site.resolve()
     pages = {path: Page(path.read_text(encoding="utf-8"))
              for path in root.rglob("*.html") if path.is_file()}
+    home = pages.get(root / "index.html")
+    base_path = unquote(urlsplit(home.canonical).path).rstrip("/") if home else ""
     errors = []
     checked = 0
     external = set()
@@ -43,8 +48,14 @@ def main():
                 if parts.scheme in {"http", "https"}:
                     external.add(href)
                 continue
-            target = ((root / unquote(parts.path).lstrip("/")) if parts.path.startswith("/")
-                      else (path.parent / unquote(parts.path))).resolve() if parts.path else path
+            link_path = unquote(parts.path)
+            if link_path.startswith("/") and base_path and (
+                link_path == base_path or link_path.startswith(base_path + "/")
+            ):
+                # A project Pages URL prefixes root-relative 404 assets/links.
+                link_path = link_path[len(base_path):] or "/"
+            target = ((root / link_path.lstrip("/")) if link_path.startswith("/")
+                      else (path.parent / link_path)).resolve() if parts.path else path
             if target.is_dir():
                 target /= "index.html"
             checked += 1

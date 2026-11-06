@@ -50,7 +50,15 @@ uv pip compile requirements-docs.in --generate-hashes --output-file requirements
 .venv/docs/bin/python -m http.server 8001 --bind 127.0.0.1 --directory site
 ```
 
-打开 <http://127.0.0.1:8001/>。实际托管时将整个 `site/` 上传到支持目录 `index.html` 的静态服务器；子路径托管须保留全部相对资源和目录结构，再执行链接与浏览器检查。当前没有配置虚构的远程仓库、域名或自动发布流程，也没有执行对外部署。
+打开 <http://127.0.0.1:8001/>。实际托管时将整个 `site/` 上传到支持目录 `index.html` 的静态服务器；子路径托管须保留全部相对资源和目录结构，再执行链接与浏览器检查。
+
+## GitHub Pages 发布
+
+源码仓库为 <https://github.com/shcalm/binderfromscratch>，在线阅读地址为 <https://shcalm.github.io/binderfromscratch/>。`mkdocs.yml` 固定项目子路径，规范网址、站点地图及导航都使用同一地址；教程正文和代码仍维持开发版状态。
+
+发布工作流位于 `.github/workflows/pages.yml`。推送 `main` 或在仓库 Actions 中手动执行 Publish Tutorial，会安装带哈希锁定的文档依赖、检查 Markdown、严格构建并验证生成的链接/静态资源，然后通过 GitHub 官方 Pages artifact/deploy actions 发布 `site/`。工作流只申请读取代码、写入 Pages 和部署身份令牌的权限，不需要维护者额外保存 PAT 或 SSH 私钥。`tutorial-development` 用于开发，只有 `main` 自动发布；章节开发标签保持原样。
+
+首次运行会尝试将 Pages 的 Build and deployment Source 设为 GitHub Actions；若仓库策略不允许工作流启用 Pages，仓库管理员需在 Settings → Pages 中选择 GitHub Actions，然后在 Actions 重跑工作流。实际发布是否成功以工作流 Deploy GitHub Pages 步骤和线上网址响应为准，构建成功不等于已经上线。`gh-pages` 如存在，仅保留首次静态发布快照，后续由 Actions artifact 负责部署。
 
 ## 本次验证记录
 
@@ -84,6 +92,6 @@ SITE_BROWSER_EXECUTABLE=/home/airdrop/.cache/ms-playwright/chromium-1228/chrome-
 
 同日第 08 章增量验证：加入 Ref 正文、规范、模型、报告及源码页面，严格构建与内部目标检查通过（132 页、23416 个站内链接与资源目标、0 错误），60 个桌面/窄屏页面的浏览器检查通过，无外部资源请求。第 08 章引用转换图由横向改为纵向后重跑全部页面；桌面图和手机截图均已打开检查，图内文字可读且完整显示。随后只补本记录并重建，无控件或布局变化。本轮停在 C08 开发检查点，供用户先阅读；正式整章验收、完整无障碍、打印和外链在线验证仍开放。
 
-这不代表完整无障碍审计、所有手机/打印布局验收或外部 Android 源码 URL 的在线有效性验证；后续正文变化后仍应重跑相同检查。未执行对外部署，也未宣布 M1/M2 正式发布。
+这些本地记录不代表完整无障碍审计、所有手机/打印布局验收或外部 Android 源码 URL 的在线有效性验证；后续正文变化后仍应重跑相同检查。GitHub Pages 发布使用上述独立流程，不代表 M1/M2 教学验收或正式章节发布。
 
 公式渲染检查样例：\(a + b = c\)。无脚本时保留公式源文本。
