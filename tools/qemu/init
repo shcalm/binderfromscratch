@@ -1,0 +1,31 @@
+#!/bin/sh
+export PATH=/bin
+mount -t devtmpfs devtmpfs /dev
+mount -t proc proc /proc
+mount -t sysfs sysfs /sys
+exec </dev/console >/dev/console 2>&1
+echo 'MINI_LAB_BOOT'
+fail() {
+    echo "MINI_LAB_FAIL: $*"
+    poweroff -f
+    exit 1
+}
+insmod /mini_hello.ko || fail 'initial insmod'
+grep -q '^mini_hello ' /proc/modules || fail 'missing loaded module'
+rmmod mini_hello || fail 'initial rmmod'
+if insmod /mini_hello.ko fail_init=1; then
+    fail 'failure initialization unexpectedly succeeded'
+fi
+if grep -q '^mini_hello ' /proc/modules; then
+    fail 'failed module remained registered'
+fi
+insmod /mini_hello.ko || fail 'reload after failure'
+rmmod mini_hello || fail 'final rmmod'
+dmesg | grep -q 'mini_hello: init rollback' || fail 'missing rollback evidence'
+dmesg | grep -q 'mini_hello: exit ok' || fail 'missing exit evidence'
+insmod /mini_binder.ko || fail 'device registration'
+/device_test || fail 'device ABI assertions'
+rmmod mini_binder || fail 'device removal'
+dmesg | grep -q 'mini_binder: device removed live_contexts=0' || fail 'device context cleanup'
+echo 'MINI_LAB_PASS'
+poweroff -f
