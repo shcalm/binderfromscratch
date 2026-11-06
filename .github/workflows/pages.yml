@@ -32,23 +32,6 @@ jobs:
         run: python -m mkdocs build --strict --clean
       - name: Check generated links and assets
         run: python tools/site_check.py site
-      - name: Select GitHub Actions as the Pages source
-        uses: actions/github-script@v7
-        with:
-          script: |
-            try {
-              const { data } = await github.request('GET /repos/{owner}/{repo}/pages', context.repo);
-              if (data.build_type !== 'workflow') {
-                await github.request('PUT /repos/{owner}/{repo}/pages', {
-                  ...context.repo, build_type: 'workflow'
-                });
-              }
-            } catch (error) {
-              if (error.status !== 404) throw error;
-              await github.request('POST /repos/{owner}/{repo}/pages', {
-                ...context.repo, build_type: 'workflow'
-              });
-            }
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

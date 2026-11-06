@@ -58,7 +58,13 @@ uv pip compile requirements-docs.in --generate-hashes --output-file requirements
 
 发布工作流位于 `.github/workflows/pages.yml`。推送 `main` 或在仓库 Actions 中手动执行 Publish Tutorial，会安装带哈希锁定的文档依赖、检查 Markdown、严格构建并验证生成的链接/静态资源，然后通过 GitHub 官方 Pages artifact/deploy actions 发布 `site/`。工作流只申请读取代码、写入 Pages 和部署身份令牌的权限，不需要维护者额外保存 PAT 或 SSH 私钥。`tutorial-development` 用于开发，只有 `main` 自动发布；章节开发标签保持原样。
 
-首次运行会尝试将 Pages 的 Build and deployment Source 设为 GitHub Actions；若仓库策略不允许工作流启用 Pages，仓库管理员需在 Settings → Pages 中选择 GitHub Actions，然后在 Actions 重跑工作流。实际发布是否成功以工作流 Deploy GitHub Pages 步骤和线上网址响应为准，构建成功不等于已经上线。`gh-pages` 如存在，仅保留首次静态发布快照，后续由 Actions artifact 负责部署。
+当前网站已通过 `gh-pages` 分支发布。云端 Markdown 检查、严格构建和链接检查均已通过，但仓库默认的 `github-pages` 环境仅允许 `gh-pages` 部署，且工作流令牌无权修改 Pages 来源，因此 `main` 的自动部署尚需管理员完成一次设置：
+
+1. 在 [Settings → Pages](https://github.com/shcalm/binderfromscratch/settings/pages) 将 Build and deployment 的 Source 改为 GitHub Actions。
+2. 在 [Settings → Environments](https://github.com/shcalm/binderfromscratch/settings/environments) 打开 `github-pages`，检查 Deployment branches and tags，允许 `main` 分支部署。
+3. 在 Actions 中重跑最新的 Publish Tutorial 工作流，确认 Deploy GitHub Pages 成功。
+
+工作流将构建和部署拆成两个任务，环境限制不会阻止文档构建检查。完成上述设置前，可继续通过 `.venv/docs/bin/ghp-import --no-jekyll --push --branch gh-pages --remote origin site` 发布已验收的构建；切换后由 Actions artifact 负责部署。实际发布是否成功以部署步骤和线上网址响应为准，构建成功不等于已经上线。
 
 ## 本次验证记录
 

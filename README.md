@@ -2,7 +2,7 @@
 
 从 `add(1, 2)` 出发，先遇到问题，再比较方案、做实验、引入机制，最终构建可运行的教学 IPC 驱动 mini-binder，并对照 Android Binder。
 
-在线阅读：<https://shcalm.github.io/binderfromscratch/>。网站随 `main` 分支更新自动构建；各章仍按页面标记区分开发初稿与正式发布状态。
+在线阅读：<https://shcalm.github.io/binderfromscratch/>。已提供 `main` 分支自动发布工作流，首次使用须完成[站点指南](docs/site-guide.md)中的仓库设置；各章仍按页面标记区分开发初稿与正式发布状态。
 
 本教程以三个问题作为每章的验收标准：
 
