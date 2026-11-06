@@ -24,6 +24,7 @@ if [[ ! -f "$output/.config" ]]; then
     make -C "$source_dir" O="$output" olddefconfig
 fi
 make -C "$source_dir" O="$output" -j"$jobs" bzImage modules
+make -C "$source_dir" O="$output" headers_install INSTALL_HDR_PATH="$cache/headers"
 cp "$output/.config" "$root/artifacts/kernel.config"
 {
     printf 'kernel_source_sha256=%s\n' "$sha"

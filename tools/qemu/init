@@ -4,12 +4,26 @@ mount -t devtmpfs devtmpfs /dev
 mount -t proc proc /proc
 mount -t sysfs sysfs /sys
 exec </dev/console >/dev/console 2>&1
-echo 'MINI_LAB_BOOT'
+run_id=unknown
+for token in $(cat /proc/cmdline); do
+    case "$token" in mini_run_id=*) run_id=${token#mini_run_id=} ;; esac
+done
+echo "MINI_LAB_BOOT run_id=$run_id"
 fail() {
     echo "MINI_LAB_FAIL: $*"
     poweroff -f
     exit 1
 }
+case " $(cat /proc/cmdline) " in
+    *' mini_lab=assert '*) fail 'deliberate runner assertion' ;;
+    *' mini_lab=no-marker '*) poweroff -f; exit 0 ;;
+    *' mini_lab=hang '*) while :; do sleep 3600; done ;;
+    *' mini_lab=panic '*) echo c >/proc/sysrq-trigger; fail 'sysrq panic unavailable' ;;
+esac
+mkdir -p /dev/binderfs || fail 'binderfs mountpoint'
+mount -t binder binder /dev/binderfs || fail 'real binderfs mount'
+[ -c /dev/binderfs/binder ] || fail 'real binder device'
+/binder_probe || fail 'real binder version probe'
 insmod /mini_hello.ko || fail 'initial insmod'
 grep -q '^mini_hello ' /proc/modules || fail 'missing loaded module'
 rmmod mini_hello || fail 'initial rmmod'
@@ -25,7 +39,25 @@ dmesg | grep -q 'mini_hello: init rollback' || fail 'missing rollback evidence'
 dmesg | grep -q 'mini_hello: exit ok' || fail 'missing exit evidence'
 insmod /mini_binder.ko || fail 'device registration'
 /device_test || fail 'device ABI assertions'
+/rpc_test || fail 'synchronous RPC assertions'
+/add_server 3 >/tmp/add_server.log 2>&1 &
+server_pid=$!
+while ! grep -qx READY /tmp/add_server.log; do
+    kill -0 "$server_pid" || fail 'demo server exited before ready'
+done
+output=$(/add_client 1 2) || fail 'demo add 1 2'
+[ "$output" = result=3 ] || fail 'demo result 3'
+output=$(/add_client 19 23) || fail 'demo add 19 23'
+[ "$output" = result=42 ] || fail 'demo result 42'
+/add_client 4294967295 1 >/tmp/overflow.log 2>&1
+[ "$?" = 2 ] || fail 'demo overflow status'
+grep -q 'business error:' /tmp/overflow.log || fail 'demo overflow evidence'
+wait "$server_pid" || fail 'demo server final exit'
+/add_client 1 2 >/tmp/disconnected.log 2>&1
+[ "$?" = 3 ] || fail 'demo disconnected status'
+grep -q 'transport error:' /tmp/disconnected.log || fail 'demo transport evidence'
+echo 'RPC_DEMO_PASS result=3 result=42 business_error=2 transport_error=3'
 rmmod mini_binder || fail 'device removal'
 dmesg | grep -q 'mini_binder: device removed live_contexts=0' || fail 'device context cleanup'
-echo 'MINI_LAB_PASS'
+echo "MINI_LAB_PASS run_id=$run_id"
 poweroff -f

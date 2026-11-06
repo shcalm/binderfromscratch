@@ -7,7 +7,8 @@
 - SHA-256：`d926a06c63dd8ac7df3f86ee1ffc2ce2a3b81a2d168484e76b5b389aba8e56d0`，来自 kernel.org v6.x 校验清单。
 - 配置：x86_64_defconfig 加 `tools/kernel/config`；完整解析后配置保存到 `artifacts/kernel.config`。
 - 模块：本仓库 `examples/modules/hello/`，通过同一内核输出目录编译。
-- rootfs：静态 BusyBox。首轮使用宿主 `/usr/bin/busybox` 并记录版本与哈希；`BUSYBOX` 可覆盖。此时不承诺不同宿主获得字节一致的 rootfs。
+- rootfs：默认从源码编译静态 BusyBox 1.36.1，归档哈希 `b8cc24c9574d809e7279c3be349795c5d5ceb6fdf19ca709f80cde50e47de314`。配置采用 defconfig、STATIC=y、TC=n（避免新宿主头文件删除 CBQ 定义导致失败），完整配置与二进制哈希记录在构建报告。
+- 最初查询设备的历史验证使用宿主 BusyBox 1.30.1；需要重放旧环境时可设 `BUSYBOX=/usr/bin/busybox`。不同版本的运行证据不能互换，也不承诺不同编译宿主获得字节一致的镜像。
 - 运行器：QEMU x86_64，默认 TCG；可显式 `ACCEL=kvm`，两种模式分别实测后记录。
 
 ## 构建与运行
@@ -16,6 +17,7 @@
 
 ```sh
 bash tools/kernel/build.sh
+bash tools/qemu/build-busybox.sh
 bash tools/qemu/build-rootfs.sh
 bash tools/qemu/run.sh
 ```
