@@ -15,6 +15,8 @@ cc -static -pthread -std=c11 -O2 -Wall -Wextra -Werror -I"$root/include/uapi" \
     "$root/tests/kernel/rpc_test.c" -o "$root/build/rpc_test"
 cc -static -std=c11 -O2 -Wall -Wextra -Werror -I"$root/include/uapi" \
     "$root/tests/kernel/mapping_test.c" -o "$root/build/mapping_test"
+cc -static -std=c11 -O2 -Wall -Wextra -Werror -I"$root/include/uapi" -I"$root/userspace" \
+    "$root/tests/kernel/parcel_test.c" "$root/userspace/parcel.c" -o "$root/build/parcel_test"
 for program in add_server add_client; do
     cc -static -std=c11 -O2 -Wall -Wextra -Werror -I"$root/include/uapi" \
         "$root/userspace/$program.c" -o "$root/build/$program"
@@ -37,6 +39,7 @@ cp "$root/driver/mini_binder.ko" "$image_dir/mini_binder.ko"
 cp "$root/build/device_test" "$image_dir/device_test"
 cp "$root/build/rpc_test" "$image_dir/rpc_test"
 cp "$root/build/mapping_test" "$image_dir/mapping_test"
+cp "$root/build/parcel_test" "$image_dir/parcel_test"
 cp "$root/build/add_server" "$root/build/add_client" "$image_dir/"
 cp "$root/build/binder_probe" "$image_dir/binder_probe"
 (cd "$image_dir" && find . -print0 | LC_ALL=C sort -z | cpio --null --create --format=newc --owner=0:0) | gzip -n > "$root/build/initramfs.cpio.gz"

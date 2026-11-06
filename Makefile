@@ -3,7 +3,7 @@ CFLAGS = -std=c11 -O2 -g -Wall -Wextra -Werror -pedantic
 PROGRAMS = local_add fork_private thread_shared fork_status fork_failure socket_rpc
 SYSCALL_PROGRAMS = errno_write interrupt_wait
 MODEL_PROGRAMS = command_dispatch request_queue
-BINARIES = $(addprefix build/,$(PROGRAMS) $(SYSCALL_PROGRAMS) $(MODEL_PROGRAMS)) build/mapping
+BINARIES = $(addprefix build/,$(PROGRAMS) $(SYSCALL_PROGRAMS) $(MODEL_PROGRAMS)) build/mapping build/parcel
 
 .PHONY: all test kernel busybox rootfs vm-test vm-test-kvm vm-runner-test clean
 all: $(BINARIES)
@@ -25,6 +25,9 @@ $(addprefix build/,$(MODEL_PROGRAMS)): build/%: examples/models/%.c | build
 
 build/mapping: examples/memory/mapping.c | build
 	$(CC) $(CPPFLAGS) $(CFLAGS) $< $(LDFLAGS) -o $@
+
+build/parcel: examples/models/parcel.c userspace/parcel.c userspace/parcel.h | build
+	$(CC) $(CPPFLAGS) $(CFLAGS) -Iuserspace examples/models/parcel.c userspace/parcel.c $(LDFLAGS) -o $@
 
 test: all
 	python3 -m unittest discover -s tests -v

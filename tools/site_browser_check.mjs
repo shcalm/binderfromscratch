@@ -16,7 +16,8 @@ const routes = ["", "chapters/p01-process/", "chapters/p02-syscalls/",
   "chapters/p03-module/", "chapters/p04-environment/", "chapters/01-why-binder/",
   "chapters/02-character-device/", "chapters/03-sync-rpc/", "labs/",
   "chapters/04-mmap/", "reports/m2-mapping-progress/", "reading-path/",
-  "source/driver/mini_binder.c/", "site-guide/"];
+  "source/driver/mini_binder.c/", "site-guide/", "chapters/05-parcel/",
+  "reports/m2-parcel-progress/", "labs/parcel-model/", "source/userspace/parcel.c/"];
 try {
   for (const viewport of [{ width: 1365, height: 900 }, { width: 390, height: 844 }]) {
     const context = await browser.newContext({ viewport });
@@ -67,7 +68,7 @@ try {
       }));
       assert.ok(dimensions.scroll <= dimensions.width + 1, `${route}: horizontal page overflow`);
       results.push({ viewport, route, diagrams, ...dimensions });
-      if (["", "chapters/03-sync-rpc/", "chapters/04-mmap/", "labs/"].includes(route)) {
+      if (["", "chapters/03-sync-rpc/", "chapters/04-mmap/", "chapters/05-parcel/", "labs/"].includes(route)) {
         await page.screenshot({ path: `${output}/${viewport.width}-${route.replaceAll("/", "-") || "index"}.png`, fullPage: false, animations: "disabled" });
       }
     }

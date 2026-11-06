@@ -11,16 +11,18 @@
 | [03 请求队列模型](queue-model.md) | 用户态构建环境 | `make test`；`./build/request_queue` | 单槽覆盖与 FIFO/回复关联对照；不模拟线程调度 |
 | [03 同步 RPC](../chapters/03-sync-rpc.md) | 当前开发版 P04 环境、QEMU | `make vm-test`；可用时 `make vm-test-kvm` | 并发、退出、中断与资源回收；本章范围为同步 RPC |
 | [04 接收映射模型](mapping-model.md)与[驱动正文](../chapters/04-mmap.md) | 当前主线 P04 环境、QEMU | `make test`、`make vm-test`；可用时 `make vm-test-kvm` | 映射及生命周期边界；实际判据与限制见正文和[映射报告](../reports/m2-mapping-progress.md) |
+| [05 Parcel 模型](parcel-model.md)与[驱动正文](../chapters/05-parcel.md) | 用户态模型无需设备；驱动实验需 P04 环境 | `make build/parcel`、`make test`、`make vm-test` | 独立字节 oracle、55 条映射消息、驱动/业务两层拒绝及回滚；所有特殊对象拒绝 |
 
 ## 版本、标签与差异
 
-[代码版本索引](../reference/code-versions.md)区分 `6406d8d42e45358a9b289d080376ad858d4c2465` 的查询设备、`cfd7f42` 的同步 RPC 和 `dev-c04-20261106` 的映射开发快照。目前没有正式章节发布标签；开发标签不等于通过整章教学门槛。已有实测环境与产物摘要见[阶段报告](../reports/m0-m1-progress.md)。
+[代码版本索引](../reference/code-versions.md)区分 `6406d8d42e45358a9b289d080376ad858d4c2465` 的查询设备、`cfd7f42` 的同步 RPC、`dev-c04-20261106` 的映射和 `dev-c05-20261106` 的 Parcel 开发快照。目前没有正式章节发布标签；开发标签不等于通过整章教学门槛。已有实测环境与产物摘要见[阶段报告](../reports/m0-m1-progress.md)。
 
 在本地仓库查看从查询设备到当前开发状态的变化（包含已跟踪文件的未提交修改）：
 
 ```sh
 git show 6406d8d42e45358a9b289d080376ad858d4c2465:driver/mini_binder.c
 git diff cfd7f42 dev-c04-20261106 -- driver/ include/uapi/ tests/kernel/mapping_test.c
+git diff dev-c04-20261106 dev-c05-20261106 -- driver/ include/uapi/ userspace/ tests/kernel/parcel_test.c
 git diff 6406d8d42e45358a9b289d080376ad858d4c2465 -- driver/ include/uapi/
 git status --short
 ```

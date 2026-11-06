@@ -65,7 +65,8 @@ nav:
       - 03 实现第一个同步 RPC: chapters/03-sync-rpc.md
   - 第二篇 · 数据与事务 · 开发中:
       - 04 mmap 接收映射: chapters/04-mmap.md
-      - 05–06 章路线与任务: routes/part-2.md
+      - 05 Parcel 请求: chapters/05-parcel.md
+      - 06 章路线与任务: routes/part-2.md
   - 第三篇 · 对象与服务 · 未完成:
       - 07–09 章路线与任务: routes/part-3.md
   - 第四篇 · 线程与生命周期 · 未完成:
@@ -80,6 +81,7 @@ nav:
       - 系统调用: labs/syscalls.md
       - 请求队列模型: labs/queue-model.md
       - 接收映射模型: labs/mapping-model.md
+      - Parcel 编解码模型: labs/parcel-model.md
       - 代码版本索引: reference/code-versions.md
       - 源码阅读: source/index.md
   - 参考与进度:
@@ -91,10 +93,12 @@ nav:
       - 字符设备 ABI: design/device-abi.md
       - 同步 RPC 设计: design/minimal-rpc.md
       - 接收区设计: design/receive-region.md
+      - Parcel 格式设计: design/parcel-format.md
       - 全书路线: plans/roadmap.md
       - 任务总表: plans/task-backlog.md
       - 第一阶段计划: plans/phase-01.md
       - 阶段实测报告: reports/m0-m1-progress.md
       - 第 04 章映射实测报告: reports/m2-mapping-progress.md
+      - 第 05 章 Parcel 实测报告: reports/m2-parcel-progress.md
       - 修订与勘误: reference/changes.md
       - 本地构建与预览: site-guide.md

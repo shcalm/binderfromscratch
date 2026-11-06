@@ -8,10 +8,12 @@
 #define MB_ABI_VERSION 1
 #define MB_FEATURE_RPC 1
 #define MB_FEATURE_MMAP 2
+#define MB_FEATURE_PARCEL 4
 #define MB_MAX_REQUESTS 64
 #define MB_MAP_BYTES 65536
 #define MB_MAP_SLOTS 16
 #define MB_MAX_PAYLOAD 4096
+#define MB_MAX_OBJECTS 16
 
 struct mb_query {
     __u32 version;
@@ -85,5 +87,21 @@ struct mb_buffer_stats {
 #define MB_IOC_RECEIVE_BUFFER _IOR('m', 8, struct mb_buffer_request)
 #define MB_IOC_FREE_BUFFER _IOW('m', 9, __u64)
 #define MB_IOC_BUFFER_STATS _IOR('m', 10, struct mb_buffer_stats)
+
+struct mb_object_header {
+    __u32 type;
+    __u32 flags;
+};
+
+struct mb_parcel_call {
+    __u64 data;
+    __u64 offsets;
+    __u32 size;
+    __u32 offsets_count;
+    __u32 result;
+    __s32 status;
+};
+
+#define MB_IOC_CALL_PARCEL _IOWR('m', 11, struct mb_parcel_call)
 
 #endif

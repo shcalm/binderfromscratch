@@ -235,9 +235,39 @@ static void mb_finish(struct mb_transaction *transaction, int error)
     wake_up_all(&transaction->wait);
 }
 
-static long mb_call(struct mb_context *context, void __user *arg, bool buffered)
+enum mb_call_mode {
+    MB_CALL_FIXED,
+    MB_CALL_BUFFER,
+    MB_CALL_PARCEL,
+};
+
+static int mb_validate_offsets(u32 size, const u32 *offsets, u32 count)
+{
+    unsigned int i;
+
+    for (i = 0; i < count; ++i) {
+        u32 offset = offsets[i];
+
+        if (offset % 8 || offset > size ||
+            size - offset < sizeof(struct mb_object_header))
+            return -EINVAL;
+        if (i && (offset <= offsets[i - 1] ||
+                  offset - offsets[i - 1] < sizeof(struct mb_object_header)))
+            return -EINVAL;
+    }
+    /* No header contents are interpreted while every type is unsupported.
+     * Future types must inspect the receive backing and check full sizes.
+     */
+    return count ? -EOPNOTSUPP : 0;
+}
+
+static long mb_call(struct mb_context *context, void __user *arg,
+                    enum mb_call_mode mode)
 {
     struct mb_transaction *transaction;
+    struct mb_parcel_call parcel_call = { 0 };
+    u32 offsets[MB_MAX_OBJECTS];
+    bool buffered = mode != MB_CALL_FIXED;
     void *target;
     int error;
 
@@ -245,7 +275,26 @@ static long mb_call(struct mb_context *context, void __user *arg, bool buffered)
     if (!transaction)
         return -ENOMEM;
     transaction->buffered = buffered;
-    if (buffered ? copy_from_user(&transaction->buffer_call, arg,
+    if (mode == MB_CALL_PARCEL) {
+        if (copy_from_user(&parcel_call, arg, sizeof(parcel_call))) {
+            error = -EFAULT;
+            goto free;
+        }
+        if (!parcel_call.size || parcel_call.size > MB_MAX_PAYLOAD ||
+            parcel_call.offsets_count > MB_MAX_OBJECTS ||
+            (!parcel_call.offsets_count && parcel_call.offsets)) {
+            error = -EINVAL;
+            goto free;
+        }
+        if (parcel_call.offsets_count &&
+            copy_from_user(offsets, u64_to_user_ptr(parcel_call.offsets),
+                           parcel_call.offsets_count * sizeof(offsets[0]))) {
+            error = -EFAULT;
+            goto free;
+        }
+        transaction->buffer_call.data = parcel_call.data;
+        transaction->buffer_call.size = parcel_call.size;
+    } else if (buffered ? copy_from_user(&transaction->buffer_call, arg,
                                   sizeof(transaction->buffer_call)) :
                    copy_from_user(&transaction->call, arg,
                                   sizeof(transaction->call))) {
@@ -284,18 +333,25 @@ static long mb_call(struct mb_context *context, void __user *arg, bool buffered)
     }
     if (buffered) {
         error = mb_region_reserve(server, &transaction->buffer_request, &target);
-        if (!error && copy_from_user(target,
-             u64_to_user_ptr(transaction->buffer_call.data),
-             transaction->buffer_call.size)) {
-            mb_region_free(&server->region,
-                           transaction->buffer_request.token, true);
-            error = -EFAULT;
-        }
         if (error) {
             mutex_unlock(&mb_lock);
             goto free;
         }
+        if (copy_from_user(target,
+             u64_to_user_ptr(transaction->buffer_call.data),
+             transaction->buffer_call.size))
+            error = -EFAULT;
+        else if (mode == MB_CALL_PARCEL)
+            error = mb_validate_offsets(transaction->buffer_call.size, offsets,
+                                        parcel_call.offsets_count);
+        if (error) {
+            mb_region_free(&server->region,
+                           transaction->buffer_request.token, true);
+            mutex_unlock(&mb_lock);
+            goto free;
+        }
         mutex_lock(&server->region.lock);
+        /* Count payloads accepted for publication, not all attempted copies. */
         server->region.payload_copies++;
         server->region.payload_bytes += transaction->buffer_call.size;
         mutex_unlock(&server->region.lock);
@@ -329,7 +385,12 @@ static long mb_call(struct mb_context *context, void __user *arg, bool buffered)
     context->busy = false;
     mutex_unlock(&mb_lock);
     if (!error) {
-        if (buffered ? copy_to_user(arg, &transaction->buffer_call,
+        if (mode == MB_CALL_PARCEL) {
+            parcel_call.result = transaction->buffer_call.result;
+            parcel_call.status = transaction->buffer_call.status;
+            if (copy_to_user(arg, &parcel_call, sizeof(parcel_call)))
+                error = -EFAULT;
+        } else if (buffered ? copy_to_user(arg, &transaction->buffer_call,
                                     sizeof(transaction->buffer_call)) :
                        copy_to_user(arg, &transaction->call,
                                     sizeof(transaction->call)))
@@ -433,7 +494,7 @@ static long mb_ioctl(struct file *file, unsigned int command, unsigned long arg)
     switch (command) {
     case MB_IOC_QUERY:
         query.version = MB_ABI_VERSION;
-        query.features = MB_FEATURE_RPC | MB_FEATURE_MMAP;
+        query.features = MB_FEATURE_RPC | MB_FEATURE_MMAP | MB_FEATURE_PARCEL;
         query.open_id = context->id;
         query.live_contexts = atomic64_read(&live_contexts);
         return copy_to_user(user, &query, sizeof(query)) ? -EFAULT : 0;
@@ -451,9 +512,11 @@ static long mb_ioctl(struct file *file, unsigned int command, unsigned long arg)
         mutex_unlock(&mb_lock);
         return error;
     case MB_IOC_CALL:
-        return mb_call(context, user, false);
+        return mb_call(context, user, MB_CALL_FIXED);
     case MB_IOC_CALL_BUFFER:
-        return mb_call(context, user, true);
+        return mb_call(context, user, MB_CALL_BUFFER);
+    case MB_IOC_CALL_PARCEL:
+        return mb_call(context, user, MB_CALL_PARCEL);
     case MB_IOC_RECEIVE:
         return mb_receive(context, user, false);
     case MB_IOC_RECEIVE_BUFFER:

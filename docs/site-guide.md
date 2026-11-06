@@ -1,6 +1,6 @@
 # 本地阅读站点：构建与验证
 
-本地站点使用 MkDocs Material，正文仍以 `docs/` 中 Markdown 为单一来源。当前是开发阅读版，不代表 M1 或 M2 正式发布。现有正文明确标注初稿，第 05–18 章只进入路线与任务。
+本地站点使用 MkDocs Material，正文仍以 `docs/` 中 Markdown 为单一来源。当前是开发阅读版，不代表 M1 或 M2 正式发布。现有正文明确标注初稿，第 06–18 章只进入路线与任务。
 
 ## 安装与预览
 
@@ -75,6 +75,8 @@ Mermaid 11.4.1 与 MathJax 3.2.2 的浏览器包及许可证保存在 `docs/asse
 ```sh
 SITE_BROWSER_EXECUTABLE=/home/airdrop/.cache/ms-playwright/chromium-1228/chrome-linux64/chrome node tools/site_browser_check.mjs
 ```
+
+同日第 05 章增量验证：加入 Parcel 正文、模型、报告和共用库源码页面后，严格构建及内部链接/资源检查通过（112 页、13608 个站内链接与资源目标、0 错误），浏览器扩大至 36 个桌面/窄屏页面并通过。第 05 章两种尺寸的截图已检查；仍未执行下面列出的完整无障碍、打印和外链在线验证。
 
 这不代表完整无障碍审计、所有手机/打印布局验收或外部 Android 源码 URL 的在线有效性验证；后续正文变化后仍应重跑相同检查。未执行对外部署，也未宣布 M1/M2 正式发布。
 
