@@ -9,6 +9,7 @@
 #define MB_FEATURE_RPC 1
 #define MB_FEATURE_MMAP 2
 #define MB_FEATURE_PARCEL 4
+#define MB_FEATURE_TRANSACTION 8
 #define MB_MAX_REQUESTS 64
 #define MB_MAP_BYTES 65536
 #define MB_MAP_SLOTS 16
@@ -103,5 +104,27 @@ struct mb_parcel_call {
 };
 
 #define MB_IOC_CALL_PARCEL _IOWR('m', 11, struct mb_parcel_call)
+
+struct mb_transaction_call {
+    __u64 data;
+    __u32 size;
+    __u32 reserved;
+    __u64 token;
+    __u64 offset;
+    __u32 reply_size;
+    __s32 status;
+};
+
+struct mb_transaction_reply {
+    __u64 id;
+    __u64 data;
+    __u32 size;
+    __s32 status;
+};
+
+#define MB_IOC_REGISTER_TRANSACTION _IO('m', 12)
+#define MB_IOC_CALL_TRANSACTION _IOWR('m', 13, struct mb_transaction_call)
+#define MB_IOC_RECEIVE_TRANSACTION _IOR('m', 14, struct mb_buffer_request)
+#define MB_IOC_REPLY_TRANSACTION _IOW('m', 15, struct mb_transaction_reply)
 
 #endif

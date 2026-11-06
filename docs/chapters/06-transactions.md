@@ -1,0 +1,269 @@
+# 第 06 章｜让一次调用只得到自己的回复
+
+第 05 章已经能把结构化请求送进 Server 的只读接收区，由用户态 codec 解码，再返回固定整数。它继承了第 03 章的请求 ID、全局排队和独立等待记录；事务并不是本章才突然出现。上一开发检查点为 `dev-c05-20261106`，对应提交 `31abf0e`，见[版本索引](../reference/code-versions.md)。
+
+现在增加一个具体场景：同一个 Client 打开的上下文中，两个线程同时调用；两条请求的业务 `sequence` 都是 7，Server 先完成第二条，再完成第一条，且回复包含变长字节。我们必须分别回答：回复属于谁，谁有权回复，谁决定取消与回复的先后，以及请求、回复和记录由谁释放。
+
+本章设计见[事务决策](../design/transactions.md)，普通实验见[事务模型](../labs/transaction-model.md)。当前普通模型十一项测试通过，完整 TCG/KVM 与旧路径回归通过；命令、证据和限制见[开发验收报告](../reports/m2-transactions-progress.md)。开发检查点为 `dev-c06-20261106`；尚无本章正式发布版本，也没有构建运行完整 AOSP 系统。
+
+## 1. 一个结果槽为什么会丢掉调用关系
+
+先不讨论内核。假设每个连接只有一个 `result`，两笔调用分别应得 3 和 42。Server 反序完成，Client 在两次写入后才读取：
+
+```text
+连接 1，调用 2，sequence=7：result = 42
+连接 1，调用 1，sequence=7：result = 3
+调用 1 读取 result：3
+调用 2 读取 result：3，原来的 42 已被覆盖
+```
+
+[transactions.c](../../examples/models/transactions.c) 的 `slot` 模式实际执行这两次赋值和两次读取。第一笔碰巧正确不代表协议正确；第二笔已经失去自己的结果。给同一个槽增加互斥锁，只能保证每次读写不交错，不能让被覆盖的 42 重新出现。
+
+业务 `sequence` 也不能补救这个例子。它由应用选择，可以重复；即使应用约定唯一，内核仍要验证回复者身份和调用是否已经终结。否则一个知道 sequence 的无关进程就可能冒充 Server，或让取消后的调用重新得到回复。
+
+上一版通过“每个打开上下文最多一个在途 CALL”避免了这个共享槽问题。本章选择扩大允许的并发范围，因此必须扩大关联和所有权机制，不能只删除原来的 EBUSY 检查。
+
+## 2. 先比较能满足不同约束的方案
+
+| 方案 | 能解决什么 | 新场景中的取舍 |
+| --- | --- | --- |
+| 每连接一次调用，调用完成后再发下一笔 | 连接本身就能关联结果，状态和清理较少 | 合理且继续保留在旧 ABI 中；同一连接不能同时保留两笔在途调用。 |
+| 每笔调用使用独立连接 | 可以沿连接身份等待各自结果，Socket 等传输也能这样设计 | 需要管理更多连接、接收区和退出路径；若要复用一条连接，仍需请求标识及分发规则。 |
+| 共享可写邮箱，加多个结果槽和显式同步 | 双方可信、容量固定时可行，不要求一定经过本驱动 | 需要约定槽身份、写权限、发布顺序、取消和复用规则；不能把另一进程的指针直接当作本进程地址。 |
+| 驱动事务 ID、每笔等待记录、Client 接收映射 | 同一打开上下文可有多笔调用，Server 能反序完成，驱动检查回复资格 | 本章选择；增加双向槽、输出回滚、终结竞争和有界资源管理。 |
+
+这不是从反例推导出“只能使用 Binder”。我们选择最后一项，是为了沿用已有驱动队列与映射机制，并把关联、终结、缓冲归还放到同一个可检验模型中。普通字段仍由用户态解释；内核只提供传输和资源规则。
+
+## 3. 先把身份和返回值分开
+
+一笔调用至少涉及以下不同的数值，不能因为它们都叫 ID 或 status 就混用：
+
+| 数值 | 谁产生、谁解释 | 有效范围 |
+| --- | --- | --- |
+| 业务 sequence | 应用编码、Server 解码 | 普通 payload 字段，可重复；驱动不解析。 |
+| 事务 id | 驱动单调分配，Server 在 REPLY 中提交 | 定位尚可回复的记录；还必须通过 Server、模式和状态检查。 |
+| 缓冲 token | 接收区分配器产生，所属上下文用 FREE 归还 | 标识一个槽的这次使用，不是事务 ID，也不是业务请求号。 |
+| offset/size | 驱动返回，接收者验证后访问自己的映射 | 不等于发送者指针，不能脱离映射与 token 生命周期使用。 |
+| ioctl 返回值及 errno | 驱动/系统调用边界产生 | 表示传输、资格或复制失败；C 包装通常以 -1 和 errno 呈现。 |
+| 回复 status | Server 设置，Client 解释 | 应用状态；负值不会自动变成 ioctl errno。 |
+
+模型的 `reorder` 用事务 101、102 表示两笔调用；两者连接和 sequence 相同。Server 回复 102 的 42，再回复 101 的 3，结果按事务 ID 查找后送给各自调用。ID 本身不是权限：未知 ID、未领取 ID、错误 Server 和重复回复分别需要拒绝。
+
+mini 中 Client 不需要再从一个公共“回复队列”猜结果归属。每次阻塞的 CALL 都有自己的等待记录和用户输出地址，驱动唤醒对应的那一次调用。Server 才需要携带领取到的 ID 回复。
+
+## 4. 只补充本章需要的 Linux 概念
+
+**同一个 fd 不等于只有一个执行线程。** 多个线程可以对同一个打开文件发起 ioctl，并进入同一个 `mb_context`；每次系统调用有独立内核栈。驱动没有替用户创建线程，也没有自动串行化所有 ioctl。共享上下文中的计数和队列必须由锁保护。
+
+**等待队列保存的是等待条件的线程，不是业务结果。** 每笔 `mb_transaction` 内有自己的 wait queue。CALL 发布记录后，`wait_event_interruptible()` 检查终态条件；条件不满足时允许调度器运行其他线程，信号可能打断等待。REPLY 或失败路径先在锁内提交终态，再唤醒。唤醒只是提示重新检查条件，不能脱离状态就当作成功回复；宏在入队和睡眠过程中重查条件，也避免把“恰好在睡前发生的回复”丢掉。
+
+**mutex 可以睡眠，但睡眠并非免费。** ioctl 运行在可睡眠的进程上下文，本驱动使用 mutex，而非跨用户复制持有自旋锁。`copy_from_user()`、`copy_to_user()` 可因缺页睡眠，返回的是未复制字节数，非零即失败；它们不保证失败前一个字节都没动。本章全局 mutex 跨 payload 复制，能简化事务稳定性，却可能让一次缺页阻挡其他调用。状态机不能据此证明没有所有死锁或延迟问题。
+
+**文件、映射和事务不是同一种引用。** 执行中的 ioctl 持有文件引用，保护其调用上下文到返回；VMA 也可使文件在 close(fd) 后继续存活。最终 `release` 才触发服务断开与上下文清理。事务记录却可以在 CALL 输出前已经释放，不能再通过旧指针读取结果。另一方面，内核 backing 尚存不代表用户映射尚存：并发 munmap 后，返回的偏移可能已经无法在用户态访问。
+
+这些概念只服务于本章的等待、输出与清理。嵌套调用、线程池调度和完整 Binder 引用系统仍未实现。
+
+## 5. 四种状态只回答“调用是否终结”
+
+状态为 `QUEUED`、`DELIVERED`、`REPLIED`、`FAILED`。前两者可继续推进，后两者是终态。所有转移、队列计数及一次终结决定都受 `mb_lock` 保护。
+
+```text
+QUEUED --成功 RECEIVE--> DELIVERED --成功 REPLY--> REPLIED
+   |                         |
+   +----取消/服务最终退出-----+-----------------> FAILED
+```
+
+状态图省略了保持原状态的失败，下面这些边界同样属于协议：
+
+| 起点和事件 | 结果 | 必须保留或回收什么 |
+| --- | --- | --- |
+| 发布前分配/输入复制失败 | 不发布记录 | 撤销已预留请求槽，不增 queued/live。 |
+| QUEUED，RECEIVE 输出 EFAULT | 仍 QUEUED | 描述符未交付，Server 可重试领取。 |
+| QUEUED，取消/服务最终退出 | FAILED | 驱动归还尚未交付的请求槽，唤醒 Client。 |
+| DELIVERED，REPLY 输入复制或回复槽分配失败 | 仍 DELIVERED | 撤销临时回复槽，Server 可修正后重试。 |
+| DELIVERED，合格回复被接受 | REPLIED | 准备回复输出；不隐式归还 Server 请求槽。 |
+| DELIVERED，取消/服务最终退出 | FAILED | 已交付请求槽仍由 Server 归还或最终 release 清理。 |
+| 任一终态，又发生取消/退出/回复 | 不改变终态 | 不得再减计数、再次完成；重复或迟到回复 ENOENT。 |
+
+`mb_finish()` 是统一的终结入口：发现已经终结就直接返回，否则处理原状态对应的计数和未交付请求槽、保存结果并唤醒。它不负责替应用 FREE 所有缓冲，也不释放当前仍由 CALL 使用的记录。
+
+Client 信号与 Server 回复都要重新取得 `mb_lock`。若记录已终结，CALL 使用已提交的结果；否则信号导致 FAILED。CALL 把内部 `ERESTARTSYS` 转成 EINTR，避免系统自动重启 ioctl、悄悄再提交一次业务。取消先赢则迟到回复 ENOENT，回复先赢则信号不能把 REPLIED 覆盖为 FAILED。EINTR 也不证明 Server 没执行过业务，已领取请求可能仍在执行。
+
+模型每笔终结后 `terminal_count` 必须恰好为 1；仍在途时为 0。真实驱动没有依赖这个模型计数实现安全，而是使用受锁保护的状态和资源账目。
+
+## 6. 三类资源和一个输出阶段
+
+只看 REPLIED 很容易误判“全部完成”。至少要分别核对以下责任：
+
+| 对象或阶段 | 创建/持有 | 转移与释放 |
+| --- | --- | --- |
+| 事务记录 | CALL 分配、发布到全局表；REPLY 在锁内查找 | CALL 观察终态后摘表、保存本地结果并释放；不等待两端 FREE。 |
+| 请求槽 | 从 Server region 预留，排队时由驱动管理 | RECEIVE 描述符复制成功才交给 Server；Server 读取完后 FREE。排队失败自动撤销。 |
+| 回复槽 | 非空 REPLY 从 Client region 预留，先为未交付 | CALL 输出成功后归 Client；Client 读完 FREE。输出 EFAULT 时驱动撤销。 |
+| CALL 输出阶段 | CALL 栈保存 token、offset、size、status 等快照 | 输出及槽交付/撤销完成后结束，不再依赖事务记录或 Server。 |
+
+Server 可以解码并 FREE 请求，稍后再提交回复；也可以回复后再 FREE。只要不再访问借用数据，两种顺序都合法。Client 取消或正常回复不替 Server 归还已交付请求槽，REPLY 中的 payload 指针也只是复制来源，并不转移 Server 用户缓冲的所有权。
+
+非空回复被接受时，Client 尚未拿到 token，所以回复槽不能立即当作已交付。CALL 唤醒后先在锁内取快照、摘除记录，解锁后 `kfree(transaction)`；之后的输出只能使用栈上的快照及仍受文件生命周期保护的 caller context。若 `copy_to_user()` 失败，驱动撤销未交付回复槽，防止 Client 不知道 token 而泄漏；事务仍曾经 REPLIED，不能据此自动重试业务。
+
+用户必须等 CALL 返回才使用输出。其他线程提前观察控制结构，不构成协议交付；猜到 token 提前 FREE 可能得到 EBUSY。输出失败也可能部分改写用户内存，此时整份结果都应丢弃，不能从残存字段自行构造 FREE。本章整页只读控制页的实验只覆盖一种输出故障，不能推出所有 EFAULT 都零写入。
+
+两个计数尤其容易混淆。`live_requests` 计已发布、仍在全局表中的记录，最多 64；它不覆盖记录摘除后的 CALL 输出，也不限制所有驱动内存。`active_calls` 按上下文持续到**全部输出与槽交付/撤销结束**，才在锁内减少。因此不能在摘表时就允许把尚在输出的 Client 注册成 Server，或启动旧式独占 CALL。
+
+每个打开上下文仍有固定 64 KiB backing，划为 16 槽，每条 payload 至多 4096 字节。这些上限分别约束槽和表内记录，不是完整的系统内存预算。close(fd) 也不能替代上述协议归还；VMA 可能继续持有文件，延迟最终服务退出。
+
+## 7. 增量一：加独立模式，不改变旧 ABI
+
+完整可编译定义见 [mini_binder.h](../../include/uapi/mini_binder.h)，实现见 [mini_binder.c](../../driver/mini_binder.c)。QUERY 增加 `MB_FEATURE_TRANSACTION=8`，命令号使用 12–15：
+
+| 命令 | 参数 | 关键约定 |
+| --- | --- | --- |
+| REGISTER_TRANSACTION | 无 | 当前上下文已有只读接收映射、没有在途 CALL，注册为唯一 Server。 |
+| CALL_TRANSACTION | 40 字节 `mb_transaction_call` | 输入 data(u64)、size(u32)、reserved(u32)；输出 token(u64)、offset(u64)、reply_size(u32)、status(s32)。请求 1–4096 字节，reserved=0。 |
+| RECEIVE_TRANSACTION | 既有 `mb_buffer_request` | 返回 id/token/offset/size/reserved，请求槽归 Server。 |
+| REPLY_TRANSACTION | 24 字节 `mb_transaction_reply` | id(u64)、data(u64)、size(u32)、status(s32)；回复 0–4096 字节，size=0 时必须 data=0。 |
+
+双方都要建立自己的只读接收映射：Server 接请求，Client 接回复。空回复不分配槽，CALL 返回 `token=offset=reply_size=0`，无须 FREE；status 仍然有效。
+
+新 CALL 允许多个线程共享一个打开上下文并发阻塞。旧 CALL、CALL_BUFFER、CALL_PARCEL 仍遵守每上下文一次一个的 EBUSY 契约，不能在同一活跃上下文与新 CALL 混用。旧 Server 不会被当作能处理变长回复的 Server，模式不符返回 EPROTOTYPE；新 Server 调用旧 REPLY/RECEIVE，或旧 Server 调用新 REPLY/RECEIVE，也必须拒绝。
+
+这条新路径只运普通字节，没有对象偏移表。它可以由用户态按约定编码结构化回复，但不意味着第 05 章的普通字段格式、内核包络和对象转换已合成完整 Android Parcel。Node、Ref、FD 转交仍不存在。
+
+## 8. 增量二：把发布、交付、终结和输出拆开
+
+沿三个关键路径读源码，比一次抄出全部结构体更能看清责任。
+
+**CALL：先取得可撤销资源，再发布。** 复制并验证输入控制结构，初始化等待队列；在 `mb_lock` 下检查 Server、模式、并发资格、Client 映射和表内上限。预留 Server 槽，直接将 payload 复制进去；失败就撤销槽。成功后才分配请求 ID、连接 caller/receiver、入队并增加计数，随后解锁并唤醒 Server。64 位请求 ID 不复用，耗尽为 EOVERFLOW，不能回绕到仍可能有意义的旧值。
+
+**RECEIVE：输出成功才算领取。** 检查当前注册 Server 和模式，从 QUEUED 记录中取一笔。先复制描述符到 Server 用户地址，成功后才标记槽 delivered、状态 DELIVERED，并更新 queued/delivered。输出 EFAULT 不消费这笔请求；否则一个坏输出地址就能拿走消息，却没有 token 可以归还。交付后清除记录中的 receiver 指针，后续不能依赖它持有 Server。
+
+**REPLY：资格和目标都来自记录。** 复制/验证回复控制结构后，在锁内检查当前 Server、TRANSACTION 模式以及匹配 ID 的 DELIVERED 记录。错误上下文为 EPERM；在合法回复者和模式下，未知、未领取、重复、取消后的 ID 为 ENOENT。对非空 payload，从记录关联的 Client region 预留槽并复制，成功才记录回复元数据并 `mb_finish(..., 0)`。不能按 Server 给出的任意 Client 地址写结果，也不按业务 sequence 选择目标。
+
+空回复完全跳过 reserve 和 Client VMA 检查。这给回复区满或已 munmap 的调用留下一个终结出口：Server 可以发送无 payload 的业务失败，而不是让 Client 永久等待。它不是超时机制，也不会替 Server 决定何时放弃业务。
+
+有数据回复可能遇到下列可重试失败：
+
+| 错误 | 含义 | 事务与槽结果 |
+| --- | --- | --- |
+| EAGAIN | Client 的 16 个槽已占满 | 保持 DELIVERED；释放旧回复槽后可重试，或发空回复。 |
+| ENXIO | 预留时 Client 已无接收 VMA | 保持 DELIVERED；可以发空回复。 |
+| EFAULT | 回复来源不可完整读取 | 保持 DELIVERED，已临时预留的槽必须撤销；修正来源后可重试。 |
+| EOVERFLOW | 接收槽 token 耗尽 | 保持 DELIVERED；不回绕复用，空回复仍可终结。 |
+
+输入分配的真正 ENOMEM 需要独立故障注入；槽耗尽 EAGAIN 不能叫作已经测试 kmalloc 失败。也不能仅凭上表说各种错误优先级相同：实现先复制控制结构，之后再验证回复资格，多个错误同时存在时以实际检查顺序为准。
+
+CALL 的最后阶段可用下面的顺序概括；这是阅读提纲，完整错误路径以驱动源码为准：
+
+```text
+等待终态
+取得 mb_lock，确认终态或提交取消
+摘除记录，减少 live_requests，复制结果到本地快照
+释放 mb_lock，释放事务记录
+复制 CALL 输出：成功则交付回复槽，失败则撤销未交付槽
+取得 mb_lock，减少 active_calls，结束旧式独占标记
+返回
+```
+
+锁顺序仍为 `mb_lock → region.lock`，region mutex 不跨用户复制，mmap/VMA 回调不取 `mb_lock`。全局锁保护回复查找期间的记录，CALL 的文件引用保护 caller backing；这些持有条件是当前能直接复制到目标 region 的前提。未来若把用户复制移出大锁，必须先补上稳定持有和重验证，不能只移动两行代码。Client 在 reserve 后再 munmap 时，backing 可以仍安全，用户映射却不保证可访问，应用须自行同步。
+
+## 9. 先运行确定性的事务模型
+
+前置条件为 C11 编译器、make 和 Python 3；无需 root、设备、VM 或网络。在仓库根目录执行：
+
+```sh
+make build/transactions
+./build/transactions slot
+./build/transactions reorder
+./build/transactions matrix
+./build/transactions trace deliver reply reap output_ok free_request free_reply
+python3 -m unittest discover -s tests -p test_transaction_model.py -v
+```
+
+命令均应退出 0；十一项自动测试全部通过。`slot` 中第二笔应观察到错误的 3，正是待修复的反例；`reorder` 应得到以下结果和最终账目：
+
+```text
+event=client_result id=102 logical_call=2 client=1 sequence=7 result=42
+event=client_result id=101 logical_call=1 client=1 sequence=7 result=3
+event=summary records=0 request_slots=0 reply_slots=0 terminal_total=2
+```
+
+`matrix` 应输出 52 条 step，即四种状态乘十三种事件。Python 用独立契约表核对全部单步，并遍历八种核心事件的 64 个有序事件对。它还检查临时槽回滚、终结至多一次、独立 FREE 和记录回收；不是直接读取 C 的 switch 来生成预期。完整事件表见[实验说明](../labs/transaction-model.md)。矩阵样本是特定资源子状态，不是所有槽归属组合的穷举。
+
+再按确定顺序检验两种赢家与输出失败：
+
+```sh
+./build/transactions trace deliver reply cancel reap output_ok free_request free_reply
+./build/transactions trace deliver cancel reply free_request reap
+./build/transactions trace receive_fault deliver reply_fault reply reap output_fault free_request
+./build/transactions trace deliver reply_empty reap output_ok free_request
+```
+
+第一条 REPLIED，后来的 cancel 拒绝；第二条 FAILED，迟到 reply 拒绝；第三条经过 RECEIVE 回滚、REPLY 回滚和 CALL 输出失败，终态仍 REPLIED，回复槽被撤销；第四条空回复没有回复槽，结果为 `none`。四条最终均应 `records=0 request_slots=0 reply_slots=0 terminal_total=1`。事件适用且模拟复制失败时，模型可能打印 `accepted=1`，这不等于真实故障 ioctl 返回成功。
+
+结果与 ID 错配、重复终结、槽遗留、合法重试被拒绝、测试超时或异常信号都算失败。未知模式/事件应退出 2，stderr 有 usage，stdout 为空；不能把未知输入当预期业务拒绝。单次模型执行自动截止为五秒，编译截止为三十秒。
+
+模型没有线程、真实 wait queue、用户复制、动态记录回收、VMA 或锁。为观察 reap 后的资源，它保留静态账目，但活跃 ID 查找已排除被回收记录；这不允许真实驱动解引用已 kfree 的结构。它只演示锁串行化后可能的顺序，不能证明真实竞争正确。自动测试清理临时目录；手工产物可用 `rm -f build/transactions` 删除，没有后台进程或内核资源。
+
+## 10. VM 验收必须同时看错误与资源
+
+准备 [P04 环境](p04-environment.md)后，完整 VM 入口只有：
+
+```sh
+make vm-test
+make vm-test-kvm
+```
+
+目标构建客户机并由 init 运行测试；不要在宿主加载驱动或直接运行客户机测试程序。KVM 需要可用 `/dev/kvm`，未运行应明确记为未运行。现有入口包含 [transaction_test.c](../../tests/kernel/transaction_test.c)，但文件存在和打印 PASS 都不能替代完整执行证据。下列矩阵已在完整 TCG/KVM 中验证，原始日志哈希和不能覆盖的路径见[报告](../reports/m2-transactions-progress.md)。
+
+| 要验证的问题 | 确定性步骤与预期 | 失败判据 |
+| --- | --- | --- |
+| 同 fd 的两次调用能否正确反序返回 | 两线程共享 Client fd，VM 的 sequence 都为 77（普通模型为 7）；Server 领取两条后反序回复不同结构化结果，逐笔解码 | 只运行两个独立 fd、结果串线、只比较 sequence 或等待超时。 |
+| 回复资格是否有效 | 错误 Server 为 EPERM；合法 Server 的未领取/未知/重复 ID 为 ENOENT；旧新模式混用为 EPROTOTYPE | 非法回复成功或改变队列/槽账目。 |
+| 两端 token 能否独立归还 | Server 解码后 FREE 请求，稍后回复；Client 返回后解码并 FREE 回复，也覆盖回复先于请求 FREE | REPLY 自动吞掉已交付请求槽、FREE 错上下文成功或重复 FREE 成功。 |
+| 领取输出失败是否保留消息 | RECEIVE 输出地址不可写，得到 EFAULT；换合法地址重试领取同一请求 | 消息消失、重复交付或留下无法归还槽。 |
+| 回复部分输入失败是否撤销临时槽 | 来源跨不可读页，REPLY 得 EFAULT；事务仍 DELIVERED，修正后正常回复 | 槽增长、提前终结、重试找不到记录。 |
+| 回复区满是否有恢复路径 | Client 保留 16 枚已交付回复 token；下一非空回复 EAGAIN；分别验证 FREE 后重试和空回复终结 | 永久阻塞、失败仍占新槽或空回复仍要求槽。 |
+| 没有 Client 映射如何终结 | CALL 发布后按同步点 munmap；非空回复 ENXIO，空 payload 业务失败可成功终结 | 无映射仍假称可读、有错误却不能结束事务。 |
+| CALL 输出故障是否自动回收 | 控制页设只读；业务已完成，CALL 输出 EFAULT；核对回复未交付槽被撤销 | 用 EFAULT 推论业务没执行、自动重发或槽残留。 |
+| queued/delivered 取消是否不同 | 分别在领取前后向阻塞 Client 线程发信号，CALL 得 EINTR；queued 自动回收，delivered 仍由 Server FREE | 取消后回复复活、请求槽双重释放或无人归还。 |
+| 回复与取消的两种顺序 | 取消先行时等待 CALL 返回 EINTR 后才回复，得到 ENOENT；回复先行时 REPLY 提交成功后发信号，CALL 保持成功 | 靠 sleep 猜顺序、两边都成功终结或计数减两次。回复先行的信号可能在 CALL 返回后到达，不能声称强制覆盖内核输出窗口。 |
+| Server 最终退出如何影响两种状态 | 分别保留 queued/delivered 请求，使 Server 解除 VMA 并最终关闭文件；Client 得 EPIPE | 只 close 但仍保留 VMA 就宣称死亡、等待者不醒或卸载残留。 |
+| Client 进程退出如何释放资源 | 子进程自行 open/mmap，在 queued/delivered 时 SIGKILL；waitpid 后核对 Client region/context 消失，queued 槽自动回收、delivered 槽由 Server FREE | 父进程仍持有同一 Client 文件掩盖退出、只发信号却不确认退出、迟到回复成功。未强制覆盖回复已接受而输出未完成窗口。 |
+| 旧 ABI 和最终账目是否保持 | 同次 VM 完成所有既有查询/RPC/映射/Parcel 回归；回收线程、槽和映射后卸载 | 只看新测试、忽略旧路径失败或资源不归零。 |
+
+用 pipe、明确的领取/完成报告和内核计数建立顺序，不用任意 sleep 代替同步。每次预期错误都要核对 errno、状态与资源，再执行正常调用确认可以恢复。`queued=delivered=live_requests=0` 不是单独的通过标准；还应检查各接收区槽、region、上下文及卸载账目，且必须等相关 CALL 输出结束。
+
+宿主运行器默认 120 秒截止，测试还需自己的有界等待。整次运行必须同时满足运行器退出 0、全局 `MINI_LAB_PASS`、预期断言、最终账目和没有内核告警；超时不能改写成“偶发未通过”。记录代码版本、加速方式、完整日志和哈希，不能从源码中的断言推导实测通过。没有 KASAN/lockdep 的环境应公开这一限制，零计数不等于通用泄漏或竞态证明。
+
+清理顺序须确保所有等待者退出：终结或取消剩余请求，join/wait 子线程和进程，归还已交付 token，munmap，关闭 fd/管道，最后卸载模块并结束客户机。故障用例也必须走清理；失败 VM 销毁后重建，不复用半失败状态。复制统计计“成功接受/发布的 payload”，不计所有尝试；回复被接受但 CALL 输出失败仍可能已计一次成功复制，不能用槽已撤销推断字节从未复制。
+
+## 11. 回到固定版本的真实 Binder
+
+驱动固定上游 Linux **v6.6**；用户态固定 AOSP **android-14.0.0_r1**、`frameworks/native` 提交 **`bfcf75076e562945bae131a4929f29a90d0d2481`**。获取和哈希见[驱动基线](../reference/android-binder.md)及 [AOSP 基线](../reference/aosp-userspace.md)。以下位置已按固定源码核查，仅讨论 kernel Binder 路径；两个来源分别固定，不表示已构建为经过验证的 Android 系统。
+
+| 教学问题与 mini 机制 | 固定版本源码入口 | 相同点与差异 |
+| --- | --- | --- |
+| 请求和回复分开提交 | Linux v6.6 [BC_TRANSACTION/BC_REPLY 分支，4014 行](https://github.com/torvalds/linux/blob/v6.6/drivers/android/binder.c#L4014)、[binder_transaction，2896 行](https://github.com/torvalds/linux/blob/v6.6/drivers/android/binder.c#L2896) | 都区分请求与回复，并验证调用关系；真实协议通过 BC/BR 命令流和 binder_transaction_data，mini 四个 ioctl 不兼容。 |
+| 回复应回到哪次同步调用 | v6.6 [reply 分支，2948 行](https://github.com/torvalds/linux/blob/v6.6/drivers/android/binder.c#L2948)、[同步栈链接，3623 行](https://github.com/torvalds/linux/blob/v6.6/drivers/android/binder.c#L3623) | 真实从当前线程 transaction_stack 取得 in_reply_to，校验接收线程和原调用者栈关系；mini 是全局 ID 表加每 CALL 等待者，不能等同真实同步栈路由。 |
+| 回复如何交给原调用线程 | v6.6 [成功 reply 路径，3596 行](https://github.com/torvalds/linux/blob/v6.6/drivers/android/binder.c#L3596) | 真实弹出调用关系，把回复工作排给原调用线程并唤醒；mini 保存结果并唤醒自己的 wait queue，没有嵌套事务栈和线程池。 |
+| 完成通知是不是回复结果 | v6.6 [同步完成通知延迟，3614 行](https://github.com/torvalds/linux/blob/v6.6/drivers/android/binder.c#L3614)、[BR_TRANSACTION_COMPLETE，4486 行](https://github.com/torvalds/linux/blob/v6.6/drivers/android/binder.c#L4486)；AOSP [waitForResponse，1030 行](https://github.com/aosp-mirror-neo/platform_frameworks_native/blob/bfcf75076e562945bae131a4929f29a90d0d2481/libs/binder/IPCThreadState.cpp#L1030) | COMPLETE 不携带业务回复；用户态期待 reply 时不会因它结束等待。v6.6 同步路径明确延迟该通知到目标回复或发生错误，不能说所有通知都在入队后立即发出。mini 没有独立 COMPLETE 协议事件。 |
+| 变长回复如何形成用户态 Parcel | AOSP [BR_REPLY，1059 行](https://github.com/aosp-mirror-neo/platform_frameworks_native/blob/bfcf75076e562945bae131a4929f29a90d0d2481/libs/binder/IPCThreadState.cpp#L1059) | 真实读取事务描述符，正常数据用 ipcSetDataReference 及 freeBuffer 回调建立 Parcel 引用；mini 只返回 token/offset/size/status，由应用自行解码与 FREE。 |
+| 回复结束是否自动归还所有缓冲 | v6.6 [BC_FREE_BUFFER，3970 行](https://github.com/torvalds/linux/blob/v6.6/drivers/android/binder.c#L3970)；AOSP [freeBuffer，1602 行](https://github.com/aosp-mirror-neo/platform_frameworks_native/blob/bfcf75076e562945bae131a4929f29a90d0d2481/libs/binder/IPCThreadState.cpp#L1602) | 真实有独立缓冲释放命令，libbinder 回调写入 BC_FREE_BUFFER；mini 用所属上下文的 token FREE。概念上分开记录与缓冲生命周期，不表示两者分配器或释放细节等价。 |
+
+真实 Binder 的同步回复并不是“Server 可以凭一个任意全局 ID，从任意线程反序回复所有调用”。它与线程栈、原调用关系以及嵌套路径相联系。本章特意采用共享 fd 上的独立 ID 协议来隔离身份和资源责任，不能据此宣称已实现真实 Binder 的同步调度。
+
+`BR_TRANSACTION_COMPLETE` 与业务完成也应从内容而非到达时刻区分。某版本某路径延迟发送它，不会使它自动包含方法执行结果；期待回复的 libbinder 仍要等 BR_REPLY 或错误。业务 status、用户态方法分发、普通 Parcel 编解码都不是驱动替应用执行的业务工作。
+
+## 12. 成本、练习与 Node 的入口
+
+独立事务使同一上下文能容纳并发调用，代价是每笔记录和等待队列、两端槽、回滚路径及输出阶段。全局链表查找受 64 条表内记录上限约束，仍是线性查找；固定槽会造成内部浪费，持有未 FREE 回复会反压后续调用。全局锁跨用户复制保留了明显阻塞风险。本章没有公平性、硬实时延迟、真正 ENOMEM 注入或吞吐优势结论；运行时间更短也不能直接证明复制次数更少。
+
+1. 如果给单个 result 槽的所有读写加 mutex，能保存反序返回的两个结果吗？画出两个写入先于两个读取的顺序，再判断是否仍会覆盖。需要增加存储或限制并发，而非仅保护单次赋值。
+2. 取消发生在 DELIVERED 后，为什么不能由 Client 直接 FREE Server 请求槽？槽已交付，Server 可能仍在读取；取消调用关系不撤销已经交付的借用地址。请指出最终应由哪个路径清理。
+3. REPLY 成功、CALL 输出 EFAULT、Server 请求槽仍未 FREE，可以同时成立吗？分别列出事务状态、记录、请求槽和回复槽归属；不要用一个“完成”概括它们。
+4. 把 active_calls 在摘表时减一，会遗漏哪个阶段？尝试推演另一线程此时注册 Server 或启动旧 CALL，为什么 live_requests=0 不能证明上下文空闲。
+5. Client 回复区已满，Server 可以只返回业务 -ENOSPC 吗？只有 size=0、data=0 的回复才完全绕过槽分配；在另一个非空 payload 里编码错误仍需槽。
+6. 模型所有 52 条状态事件都通过，能证明 kfree 后没有访问吗？不能；模型保留静态观察账目，真实实现必须另行核查所有指针持有、快照和输出路径。
+7. 真实 v6.6 同步路径延迟 COMPLETE，为什么 libbinder 仍不把它当方法结果？沿 waitForResponse 的 reply 参数和 BR_REPLY 分支核对所等待的数据，而非只比较事件时间。
+
+现在一笔调用有自己的身份和终结规则，但系统仍只有一个全局 Server。假如同一个进程提供“计算器”和“存储”两个对象，事务 ID 只能回答“这是哪一次调用”，不能回答“调用哪个长期存在的服务对象”。下一章引入 Node：先区分被调用对象与一次调用，再讨论如何把对象身份安全地交给其他进程。事务、缓冲与对象生命周期也必须继续分开，而不能让新的对象号取代已有的所有权规则。

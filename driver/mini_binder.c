@@ -28,11 +28,25 @@ struct mb_region {
     u64 payload_bytes;
 };
 
+enum mb_service_mode {
+    MB_SERVICE_FIXED,
+    MB_SERVICE_BUFFER,
+    MB_SERVICE_TRANSACTION,
+};
+
+enum mb_transaction_state {
+    MB_TX_QUEUED,
+    MB_TX_DELIVERED,
+    MB_TX_REPLIED,
+    MB_TX_FAILED,
+};
+
 struct mb_context {
     struct pid *owner;
     u64 id;
-    bool busy;
-    bool buffer_mode;
+    unsigned int active_calls;
+    bool exclusive_call;
+    enum mb_service_mode mode;
     struct mb_region region;
 };
 
@@ -41,11 +55,12 @@ struct mb_transaction {
     wait_queue_head_t wait;
     struct mb_request request;
     struct mb_call call;
-    bool delivered;
-    bool done;
+    enum mb_transaction_state state;
     int error;
     bool buffered;
     struct mb_context *receiver;
+    struct mb_context *caller;
+    struct mb_transaction_call transaction_call;
     struct mb_buffer_call buffer_call;
     struct mb_buffer_request buffer_request;
 };
@@ -222,16 +237,18 @@ static int mb_open(struct inode *inode, struct file *file)
 
 static void mb_finish(struct mb_transaction *transaction, int error)
 {
-    if (transaction->buffered && !transaction->delivered)
+    if (transaction->state >= MB_TX_REPLIED)
+        return;
+    if (transaction->buffered && transaction->state == MB_TX_QUEUED)
         mb_region_free(&transaction->receiver->region,
                        transaction->buffer_request.token, true);
-    if (transaction->delivered)
+    if (transaction->state == MB_TX_DELIVERED)
         delivered--;
     else
         queued--;
     transaction->error = error;
     transaction->receiver = NULL;
-    WRITE_ONCE(transaction->done, true);
+    WRITE_ONCE(transaction->state, error ? MB_TX_FAILED : MB_TX_REPLIED);
     wake_up_all(&transaction->wait);
 }
 
@@ -239,6 +256,7 @@ enum mb_call_mode {
     MB_CALL_FIXED,
     MB_CALL_BUFFER,
     MB_CALL_PARCEL,
+    MB_CALL_TRANSACTION,
 };
 
 static int mb_validate_offsets(u32 size, const u32 *offsets, u32 count)
@@ -266,8 +284,15 @@ static long mb_call(struct mb_context *context, void __user *arg,
 {
     struct mb_transaction *transaction;
     struct mb_parcel_call parcel_call = { 0 };
+    struct mb_transaction_call transaction_call;
+    struct mb_buffer_call buffer_call;
+    struct mb_call fixed_call;
     u32 offsets[MB_MAX_OBJECTS];
     bool buffered = mode != MB_CALL_FIXED;
+    bool mapped_reply = mode == MB_CALL_TRANSACTION;
+    bool active = false;
+    enum mb_service_mode service_mode = mapped_reply ? MB_SERVICE_TRANSACTION :
+        (buffered ? MB_SERVICE_BUFFER : MB_SERVICE_FIXED);
     void *target;
     int error;
 
@@ -275,7 +300,23 @@ static long mb_call(struct mb_context *context, void __user *arg,
     if (!transaction)
         return -ENOMEM;
     transaction->buffered = buffered;
-    if (mode == MB_CALL_PARCEL) {
+    if (mapped_reply) {
+        if (copy_from_user(&transaction->transaction_call, arg,
+                           sizeof(transaction->transaction_call))) {
+            error = -EFAULT;
+            goto free;
+        }
+        if (transaction->transaction_call.reserved) {
+            error = -EINVAL;
+            goto free;
+        }
+        transaction->buffer_call.data = transaction->transaction_call.data;
+        transaction->buffer_call.size = transaction->transaction_call.size;
+        transaction->transaction_call.token = 0;
+        transaction->transaction_call.offset = 0;
+        transaction->transaction_call.reply_size = 0;
+        transaction->transaction_call.status = 0;
+    } else if (mode == MB_CALL_PARCEL) {
         if (copy_from_user(&parcel_call, arg, sizeof(parcel_call))) {
             error = -EFAULT;
             goto free;
@@ -317,10 +358,12 @@ static long mb_call(struct mb_context *context, void __user *arg,
         error = -ENOTCONN;
     else if (server == context)
         error = -EDEADLK;
-    else if (server->buffer_mode != buffered)
+    else if (server->mode != service_mode)
         error = -EPROTOTYPE;
-    else if (context->busy)
+    else if (context->exclusive_call || (!mapped_reply && context->active_calls))
         error = -EBUSY;
+    else if (mapped_reply && !atomic_read(&context->region.vmas))
+        error = -ENXIO;
     else if (live_requests >= MB_MAX_REQUESTS)
         error = -EAGAIN;
     else if (next_request == U64_MAX)
@@ -358,7 +401,10 @@ static long mb_call(struct mb_context *context, void __user *arg,
         transaction->receiver = server;
         transaction->buffer_request.size = transaction->buffer_call.size;
     }
-    context->busy = true;
+    context->active_calls++;
+    context->exclusive_call = !mapped_reply;
+    active = true;
+    transaction->caller = context;
     transaction->request.id = ++next_request;
     transaction->buffer_request.id = transaction->request.id;
     transaction->request.a = transaction->call.a;
@@ -370,9 +416,9 @@ static long mb_call(struct mb_context *context, void __user *arg,
     wake_up_all(&server_wait);
 
     error = wait_event_interruptible(transaction->wait,
-                                    READ_ONCE(transaction->done));
+                    READ_ONCE(transaction->state) >= MB_TX_REPLIED);
     mutex_lock(&mb_lock);
-    if (transaction->done)
+    if (transaction->state >= MB_TX_REPLIED)
         error = transaction->error;
     else {
         /* Restarting the ioctl would submit a new business request. */
@@ -382,28 +428,52 @@ static long mb_call(struct mb_context *context, void __user *arg,
     }
     list_del(&transaction->link);
     live_requests--;
-    context->busy = false;
+    fixed_call = transaction->call;
+    buffer_call = transaction->buffer_call;
+    transaction_call = transaction->transaction_call;
     mutex_unlock(&mb_lock);
+    /* After removal only this CALL owns the record; output owns local tokens. */
+    kfree(transaction);
+    transaction = NULL;
     if (!error) {
-        if (mode == MB_CALL_PARCEL) {
-            parcel_call.result = transaction->buffer_call.result;
-            parcel_call.status = transaction->buffer_call.status;
+        if (mapped_reply) {
+            if (copy_to_user(arg, &transaction_call, sizeof(transaction_call))) {
+                if (transaction_call.token)
+                    mb_region_free(&context->region, transaction_call.token, true);
+                error = -EFAULT;
+            } else if (transaction_call.token) {
+                unsigned int slot = transaction_call.offset / MB_MAX_PAYLOAD;
+
+                mutex_lock(&context->region.lock);
+                context->region.slots[slot].delivered = true;
+                mutex_unlock(&context->region.lock);
+            }
+        } else if (mode == MB_CALL_PARCEL) {
+            parcel_call.result = buffer_call.result;
+            parcel_call.status = buffer_call.status;
             if (copy_to_user(arg, &parcel_call, sizeof(parcel_call)))
                 error = -EFAULT;
-        } else if (buffered ? copy_to_user(arg, &transaction->buffer_call,
-                                    sizeof(transaction->buffer_call)) :
-                       copy_to_user(arg, &transaction->call,
-                                    sizeof(transaction->call)))
+        } else if (buffered ? copy_to_user(arg, &buffer_call, sizeof(buffer_call)) :
+                       copy_to_user(arg, &fixed_call, sizeof(fixed_call)))
             error = -EFAULT;
     }
 free:
     kfree(transaction);
+    if (active) {
+        mutex_lock(&mb_lock);
+        context->active_calls--;
+        if (!mapped_reply)
+            context->exclusive_call = false;
+        mutex_unlock(&mb_lock);
+    }
     return error;
 }
 
-static long mb_receive(struct mb_context *context, void __user *arg, bool buffered)
+static long mb_receive(struct mb_context *context, void __user *arg,
+                       enum mb_service_mode mode)
 {
     struct mb_transaction *transaction;
+    bool buffered = mode != MB_SERVICE_FIXED;
     int error;
 
     for (;;) {
@@ -412,12 +482,12 @@ static long mb_receive(struct mb_context *context, void __user *arg, bool buffer
             mutex_unlock(&mb_lock);
             return -EPERM;
         }
-        if (context->buffer_mode != buffered) {
+        if (context->mode != mode) {
             mutex_unlock(&mb_lock);
             return -EPROTOTYPE;
         }
         list_for_each_entry(transaction, &transactions, link) {
-            if (transaction->done || transaction->delivered)
+            if (transaction->state != MB_TX_QUEUED)
                 continue;
             if (buffered ? copy_to_user(arg, &transaction->buffer_request,
                                         sizeof(transaction->buffer_request)) :
@@ -435,7 +505,7 @@ static long mb_receive(struct mb_context *context, void __user *arg, bool buffer
                 mutex_unlock(&context->region.lock);
                 transaction->receiver = NULL;
             }
-            transaction->delivered = true;
+            transaction->state = MB_TX_DELIVERED;
             queued--;
             delivered++;
             mutex_unlock(&mb_lock);
@@ -462,14 +532,72 @@ static long mb_reply(struct mb_context *context, void __user *arg)
         error = -EPERM;
         goto unlock;
     }
+    if (context->mode == MB_SERVICE_TRANSACTION) {
+        error = -EPROTOTYPE;
+        goto unlock;
+    }
     list_for_each_entry(transaction, &transactions, link) {
-        if (transaction->request.id != reply.id || transaction->done ||
-            !transaction->delivered)
+        if (transaction->request.id != reply.id ||
+            transaction->state != MB_TX_DELIVERED)
             continue;
         transaction->call.result = reply.result;
         transaction->call.status = reply.status;
         transaction->buffer_call.result = reply.result;
         transaction->buffer_call.status = reply.status;
+        mb_finish(transaction, 0);
+        error = 0;
+        break;
+    }
+unlock:
+    mutex_unlock(&mb_lock);
+    return error;
+}
+
+static long mb_reply_transaction(struct mb_context *context, void __user *arg)
+{
+    struct mb_transaction_reply reply;
+    struct mb_buffer_request response = { 0 };
+    struct mb_transaction *transaction;
+    void *target;
+    int error = -ENOENT;
+
+    if (copy_from_user(&reply, arg, sizeof(reply)))
+        return -EFAULT;
+    if (reply.size > MB_MAX_PAYLOAD || (!reply.size && reply.data))
+        return -EINVAL;
+    mutex_lock(&mb_lock);
+    if (context != server) {
+        error = -EPERM;
+        goto unlock;
+    }
+    if (context->mode != MB_SERVICE_TRANSACTION) {
+        error = -EPROTOTYPE;
+        goto unlock;
+    }
+    list_for_each_entry(transaction, &transactions, link) {
+        if (transaction->request.id != reply.id ||
+            transaction->state != MB_TX_DELIVERED)
+            continue;
+        if (reply.size) {
+            struct mb_region *region = &transaction->caller->region;
+
+            error = mb_region_reserve(transaction->caller, &response, &target);
+            if (error)
+                goto unlock;
+            if (copy_from_user(target, u64_to_user_ptr(reply.data), reply.size)) {
+                mb_region_free(region, response.token, true);
+                error = -EFAULT;
+                goto unlock;
+            }
+            mutex_lock(&region->lock);
+            region->payload_copies++;
+            region->payload_bytes += reply.size;
+            mutex_unlock(&region->lock);
+        }
+        transaction->transaction_call.token = response.token;
+        transaction->transaction_call.offset = response.offset;
+        transaction->transaction_call.reply_size = reply.size;
+        transaction->transaction_call.status = reply.status;
         mb_finish(transaction, 0);
         error = 0;
         break;
@@ -494,19 +622,23 @@ static long mb_ioctl(struct file *file, unsigned int command, unsigned long arg)
     switch (command) {
     case MB_IOC_QUERY:
         query.version = MB_ABI_VERSION;
-        query.features = MB_FEATURE_RPC | MB_FEATURE_MMAP | MB_FEATURE_PARCEL;
+        query.features = MB_FEATURE_RPC | MB_FEATURE_MMAP | MB_FEATURE_PARCEL |
+                         MB_FEATURE_TRANSACTION;
         query.open_id = context->id;
         query.live_contexts = atomic64_read(&live_contexts);
         return copy_to_user(user, &query, sizeof(query)) ? -EFAULT : 0;
     case MB_IOC_REGISTER:
     case MB_IOC_REGISTER_BUFFER:
+    case MB_IOC_REGISTER_TRANSACTION:
         mutex_lock(&mb_lock);
-        error = server || context->busy ? -EBUSY : 0;
-        if (!error && command == MB_IOC_REGISTER_BUFFER &&
+        error = server || context->active_calls ? -EBUSY : 0;
+        if (!error && command != MB_IOC_REGISTER &&
             !atomic_read(&context->region.vmas))
             error = -ENXIO;
         if (!error) {
-            context->buffer_mode = command == MB_IOC_REGISTER_BUFFER;
+            context->mode = command == MB_IOC_REGISTER ? MB_SERVICE_FIXED :
+                (command == MB_IOC_REGISTER_BUFFER ? MB_SERVICE_BUFFER :
+                 MB_SERVICE_TRANSACTION);
             server = context;
         }
         mutex_unlock(&mb_lock);
@@ -517,12 +649,18 @@ static long mb_ioctl(struct file *file, unsigned int command, unsigned long arg)
         return mb_call(context, user, MB_CALL_BUFFER);
     case MB_IOC_CALL_PARCEL:
         return mb_call(context, user, MB_CALL_PARCEL);
+    case MB_IOC_CALL_TRANSACTION:
+        return mb_call(context, user, MB_CALL_TRANSACTION);
     case MB_IOC_RECEIVE:
-        return mb_receive(context, user, false);
+        return mb_receive(context, user, MB_SERVICE_FIXED);
     case MB_IOC_RECEIVE_BUFFER:
-        return mb_receive(context, user, true);
+        return mb_receive(context, user, MB_SERVICE_BUFFER);
+    case MB_IOC_RECEIVE_TRANSACTION:
+        return mb_receive(context, user, MB_SERVICE_TRANSACTION);
     case MB_IOC_REPLY:
         return mb_reply(context, user);
+    case MB_IOC_REPLY_TRANSACTION:
+        return mb_reply_transaction(context, user);
     case MB_IOC_STATS:
         mutex_lock(&mb_lock);
         stats.queued = queued;
@@ -553,7 +691,7 @@ static int mb_release(struct inode *inode, struct file *file)
     if (server == context) {
         server = NULL;
         list_for_each_entry(transaction, &transactions, link) {
-            if (!transaction->done)
+            if (transaction->state < MB_TX_REPLIED)
                 mb_finish(transaction, -EPIPE);
         }
         wake_up_all(&server_wait);

@@ -53,6 +53,7 @@ insmod /mini_binder.ko || fail 'device registration'
 /rpc_test || fail 'synchronous RPC assertions'
 /mapping_test || fail 'mapped receive assertions'
 /parcel_test || fail 'parcel envelope assertions'
+/transaction_test || fail 'transaction assertions'
 /add_server 3 >/tmp/add_server.log 2>&1 &
 server_pid=$!
 while ! grep -qx READY /tmp/add_server.log; do
