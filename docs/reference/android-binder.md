@@ -2,7 +2,7 @@
 
 ## 版本与证据范围
 
-当前驱动阅读基线：上游 Linux **v6.6** 标签，`drivers/android/` 与 `include/uapi/linux/android/binder.h`。2026-11-06 核查了协议头，以及 binder.c 中本章涉及的事务入口和 BR 命令选择位置。
+当前驱动阅读基线：上游 Linux **v6.6** 标签，`drivers/android/` 与 `include/uapi/linux/android/binder.h`。2026-11-06 核查协议头、早期事务入口和 BR 命令选择位置；2026-11-10 为第 09–18 章定向补读对象/引用、线程栈、FD、身份、安全、异步与退出路径。各章固定链接和分析说明具体范围，不代表全驱动逐行审计。
 
 这不是 Android 平台的统一版本。运行基线也使用 Linux 6.6，已在 QEMU 的 TCG/KVM 中验证模块、mini-binder RPC 及真实 Binder 协议探测，证据见[阶段报告](../reports/m0-m1-progress.md)；这不等于完整 Android Binder RPC。Android 设备可能使用不同内核及厂商变更。用户态阅读另行固定 [AOSP Android 14 基线](aosp-userspace.md)，不能把 Linux 内核版本当作用户态平台版本，也不把阅读等同于完整 Android 构建验收。
 
@@ -10,8 +10,10 @@
 | --- | --- |
 | [binder.h](https://github.com/torvalds/linux/blob/v6.6/include/uapi/linux/android/binder.h) | ioctl、事务数据、BC/BR 命令、对象类型 |
 | [binder.c](https://github.com/torvalds/linux/blob/v6.6/drivers/android/binder.c) | 驱动入口、事务处理、对象/引用转换与工作交付 |
-| [binder_internal.h](https://github.com/torvalds/linux/blob/v6.6/drivers/android/binder_internal.h) | 后续章节的内部结构对照入口，当前未逐项审读 |
-| [binder_alloc.c](https://github.com/torvalds/linux/blob/v6.6/drivers/android/binder_alloc.c) | 后续 mmap/分配章节入口，当前未逐项审读 |
+| [binder_internal.h](https://github.com/torvalds/linux/blob/v6.6/drivers/android/binder_internal.h) | 第 16 章定向核查 proc/thread/node/ref/transaction/buffer 及锁域说明，未审计全部字段和分支 |
+| [binder_alloc.c](https://github.com/torvalds/linux/blob/v6.6/drivers/android/binder_alloc.c) | 第 16–17 章核查分配、映射与缓冲释放的相关职责，未覆盖全部分配器路径 |
+
+第 18 章比较的 Rust 内核驱动另行固定为上游 **Linux v6.18**，提交 `7d0a66e4bb9081d75c82ec4957c50034cb0ea449`。它是补充静态阅读来源，不替换上述 C 驱动和 VM 基线；合入/配置证据、文件哈希与未运行范围见[第 18 章](../chapters/18-design-review.md)及[本轮报告](../reports/remaining-chapters-draft.md)。
 
 ## 第 01 章已核查的入口
 

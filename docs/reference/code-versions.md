@@ -15,7 +15,7 @@
 | 第 06 章事务 | [设计](../design/transactions.md)、[验收](../reports/m2-transactions-progress.md)、[模型](../../examples/models/transactions.c) | `dev-c06-20261106` 开发快照；Linux 6.6，ABI 1 增量命令 | 同 fd 多调用、变长回复、两端 FREE、取消和进程退出；非真实同步栈/线程池，无对象转换 |
 | 第 07 章 Node | [设计](../design/nodes.md)、[验收](../reports/m3-nodes-progress.md)、[模型](../../examples/models/nodes.c) | `dev-c07-20261106` 开发快照；Linux 6.6，ABI 1 增量命令 | 单 Server 多对象、三类持有、撤销 EBUSY、跨进程业务；全局 ID，不含私有 Ref 或描述符转换 |
 | 第 08 章 Ref | [设计](../design/references.md)、[验收](../reports/m3-references-progress.md)、[模型](../../examples/models/references.c) | `dev-c08-20261106` 开发快照；Linux 6.6，ABI 1 增量命令 | 私有 Handle、定向 grant、请求/回复对象转换和双类 Ref 单位；真实三进程 counter；不是完整强弱引用协议或正式章节发布 |
-| 第 09–18 章 | [任务列表](../plans/task-backlog.md) | 尚未实现/验收 | 路线和任务不是可运行代码版本 |
+| 第 09–18 章 | [连续阅读稿](../reading-path.md)、[文档报告](../reports/remaining-chapters-draft.md) | 本轮工作树中的设计与源码正文；扩展尚未实现/验收 | 文内普通示例与现有 C08 实验可以分别重放；没有对应的新驱动版本或正式发布标签 |
 
 查询版本重放时在独立目录 checkout 指定提交，按该提交自己的脚本构建。主线源码和旧模块混用不构成正确的版本对照。正式阶段发布时本表补充不可移动标签、完整环境清单和 diff 链接。
 
@@ -34,6 +34,8 @@ git diff dev-c07-20261106 dev-c08-20261106 -- driver/ include/uapi/ tests/kernel
 
 `dev-c04-20261106`、`dev-c05-20261106`、`dev-c06-20261106`、`dev-c07-20261106` 是不可移动的开发检查点，后续修改创建新快照，不在原标签上覆盖。它们固定可运行代码和当时文档，但不补足独立初学者复现、预构建产物发布或正式章节验收。按标签独立 checkout 后执行 `make test`、P04 构建和 VM 命令；不要将当前工作树模块用于旧快照。
 
-`dev-c08-20261106` 延续相同开发检查点规则，固定本轮暂停位置；第 09 章尚未实施。C08 独立 REF 模式不开放旧 CALL_NODE 的全局 ID 寻址旁路，不能把两种模式的接口混用。
+`dev-c08-20261106` 延续相同开发检查点规则，固定已有 Ref 实现及当时正文。2026-11-10 新写的第 09–18 章不属于这个历史标签；这些章节的协议设计还没有对应驱动版本。C08 独立 REF 模式不开放旧 CALL_NODE 的全局 ID 寻址旁路，不能把两种模式的接口混用。
 
 实际结果及历史日志校验见[阶段报告](../reports/m0-m1-progress.md)和[映射报告](../reports/m2-mapping-progress.md)。
+
+外部源码分别固定：主要内核阅读为 Linux v6.6，用户态为 Android14 的 `bfcf75076e562945bae131a4929f29a90d0d2481`；第 18 章 Rust 内核比较另取 Linux v6.18 的 `7d0a66e4bb9081d75c82ec4957c50034cb0ea449`。补充来源的配置/合入证据、内容哈希及本轮未构建运行的范围统一见[来源与验证报告](../reports/remaining-chapters-draft.md)。

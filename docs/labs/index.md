@@ -16,6 +16,24 @@
 | [07 Node 模型](node-model.md)与[驱动正文](../chapters/07-nodes.md) | 用户态模型无需设备；驱动实验需 P04 环境 | `make build/nodes`、`make test`、`make vm-test` | 多对象同方法、三类持有、跨进程反序业务与退出；[报告](../reports/m3-nodes-progress.md)明确全局 ID 和本地对象边界 |
 | [08 Ref 模型](reference-model.md)与[驱动正文](../chapters/08-references.md) | 用户态模型无需设备；驱动实验需 P04 环境 | `make build/references`、`make test`、`make vm-test` | raw Handle 反例、真实三进程转换、两类 Ref 单位、前缀回滚及死亡对象清理；[报告](../reports/m3-references-progress.md)明确教学 grant 和未测交错 |
 
+## 第 09–18 章如何阅读与观察
+
+后续正文已补齐，mini 驱动尚未加入相应扩展。可以先用文内普通示例检验基本机制，再按固定版本源码和设计场景追踪责任。
+
+| 正文 | 当前可以做什么 | 需要继续实现/实测的部分 |
+| --- | --- | --- |
+| [09 ServiceManager](../chapters/09-service-manager.md) | 按注册、查询、对象转交场景逐步列出名字表和私有 Handle | 多 owner 路由、管理器引导、服务注册与查找协议 |
+| [10 线程](../chapters/10-thread-model.md) | 对照 A→B→A 的调用栈，阅读真实线程待办与等待循环 | mini 线程池、嵌套路由、线程退出与并发压测 |
+| [11 FD](../chapters/11-file-descriptors.md) | 在 Linux 上运行文内完整 SCM_RIGHTS 对照，观察同一打开文件的偏移 | mini FD 转换、接收资格、安装与失败回滚 |
+| [12 生命周期](../chapters/12-lifetime.md) | 对照 C08 两类单位与拟议强弱协议，逐事件检查死亡通知状态 | 强弱持有协作、死亡注册/取消/交付/确认竞态 |
+| [13 安全](../chapters/13-security.md) | 核对可信身份的来源、版本及用户态业务授权边界 | 跨 UID 策略、namespace 实测、对象/FD 转交权限矩阵 |
+| [14 Oneway](../chapters/14-oneway.md) | 推演慢消费者和有界队列，分别记录提交、执行和资源归还 | 异步队列、Node 顺序、背压及退出清理 |
+| [15 并发](../chapters/15-concurrency.md) | 审读现有锁顺序和资源持有，设计可以复现的退出/复制故障场景 | 新功能压力循环、KASAN/lockdep、分配失败矩阵 |
+| [16 架构](../chapters/16-binder-architecture.md)与[17 调用链](../chapters/17-call-trace.md) | 用固定源码逐事件定位 proc/thread/node/ref/alloc、请求/回复/释放 | 完整 Android 服务运行、真实调用 trace 与端到端故障日志 |
+| [18 复盘](../chapters/18-design-review.md) | 运行已存在的代表性反例，检查版本化 C/Rust 边界 | 额外语言实现的构建、运行与兼容验收 |
+
+每章中的“预期”或“设计推演”是要检验的命题；[本轮正文报告](../reports/remaining-chapters-draft.md)只记录实际执行过的验证。普通 Socket 文件传递不构成 mini FD 支持，源码阅读也不构成真实 Android 调用实测。
+
 ## 版本、标签与差异
 
 [代码版本索引](../reference/code-versions.md)区分 `6406d8d42e45358a9b289d080376ad858d4c2465` 的查询设备、`cfd7f42` 的同步 RPC、`dev-c04-20261106` 的映射、`dev-c05-20261106` 的 Parcel、`dev-c06-20261106` 的事务、`dev-c07-20261106` 的 Node 和 `dev-c08-20261106` 的 Ref 开发快照。目前没有正式章节发布标签；开发标签不等于通过整章教学门槛。已有实测环境与产物摘要见[阶段报告](../reports/m0-m1-progress.md)。

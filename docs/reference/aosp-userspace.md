@@ -40,6 +40,17 @@ sha256sum build/reference/aosp-frameworks-native/*
 
 ## 3. 本次证据与未实现内容
 
-已核对源码版本、四个文件哈希、上述编解码/对象表/事务封装入口。没有在此构建 AOSP libbinder、运行它的 Parcel 测试或用该版本 ServiceManager 完成服务调用。Linux v6.6 与 Android 14 用户态是分开固定的两个阅读输入，不表示任意二者构建组合已经由本教程验证。
+早期核对源码版本、四个文件哈希及上述编解码/对象表/事务封装入口。2026-11-10 后续章节在同一提交上扩展了定向阅读，见下一节；获取脚本的四文件范围保持不变。没有在此构建 AOSP libbinder、运行它的 Parcel 测试或用该版本 ServiceManager 完成服务调用。Linux v6.6 与 Android 14 用户态是分开固定的两个阅读输入，不表示任意二者构建组合已经由本教程验证。
 
 后续 mini Parcel 必须独立定义格式、校验与拒绝未知对象类型；“借鉴设计”不等于 ABI 兼容。普通数据模型通过后，还要在映射接收路径验证编解码和失败释放，才算该章实现闭环。
+
+## 4. 第 09–18 章的补充阅读
+
+| 文件或路径 | 本轮核查的问题 |
+| --- | --- |
+| `cmds/servicemanager/ServiceManager.cpp`、`main.cpp` | 名字表与驱动引导的分工、同名覆盖、查找授权和死亡清理。 |
+| `libs/binder/BpBinder.cpp`、`Binder.cpp` | 代理调用、本地对象分发与弱引用相关入口；不把用户态旧路径等同于 v6.6 驱动支持。 |
+| 原四文件中的后续片段 | 等待事件分发、Parcel 释放与 BC_FREE_BUFFER、同步回复及事务封装。 |
+| `libs/binder/rust/Android.bp`、`src/lib.rs`、`src/proxy.rs`、`src/parcel.rs` | Rust AIDL/NDK 绑定的构建依赖、强弱包装、Parcel 所有权及借用、FFI 安全契约。 |
+
+额外八文件按同一提交通过镜像 contents API 获取，路径、SHA-256 与独立下载例见[本轮来源报告](../reports/remaining-chapters-draft.md)。它们保存在忽略的 `build/reference/`，并未加入 fetch-aosp.sh 的自动下载清单。Rust 用户态绑定与第 18 章另读的 Linux v6.18 Rust 内核驱动属于不同层，不共享版本号，也不互相证明运行状态。

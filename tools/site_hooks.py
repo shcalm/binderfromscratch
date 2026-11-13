@@ -57,16 +57,32 @@ def on_config(config):
 
 def on_files(files, config):
     source_pages.clear()
-    parts = ((3, "第三篇：对象与服务", "09"),
-             (4, "第四篇：线程与生命周期", "10–12"),
-             (5, "第五篇：安全与稳定性", "13–15"),
-             (6, "第六篇：真实 Binder", "16–18"))
+    parts = (
+        (3, "第三篇：对象与服务", (
+            ("07 Node 对象身份", "07-nodes"),
+            ("08 Ref 与对象转交", "08-references"),
+            ("09 ServiceManager 服务发现", "09-service-manager"))),
+        (4, "第四篇：线程与生命周期", (
+            ("10 线程与嵌套回调", "10-thread-model"),
+            ("11 文件描述符传递", "11-file-descriptors"),
+            ("12 引用生命周期与死亡通知", "12-lifetime"))),
+        (5, "第五篇：安全与稳定性", (
+            ("13 身份与授权", "13-security"),
+            ("14 Oneway 与背压", "14-oneway"),
+            ("15 并发与资源回收", "15-concurrency"))),
+        (6, "第六篇：真实 Binder", (
+            ("16 从需求定位内核架构", "16-binder-architecture"),
+            ("17 逐事件追踪一次调用", "17-call-trace"),
+            ("18 设计复盘与 Rust 对照", "18-design-review"))),
+    )
     for number, title, chapters in parts:
-        content = f"# {title}：路线入口\n\n"
-        content += f"**第 {chapters} 章未完成，目前没有对应正文与发布版本。**\n\n"
-        content += f"[查看本篇规划的设计问题](../reading-path.md#part-{number})，"
-        content += "或进入[任务总表](../plans/task-backlog.md)核对逐项状态。\n\n"
-        content += "全书的实验要求与 Android 对照方向见[路线图](../plans/roadmap.md)。\n"
+        content = f"# {title}：阅读入口\n\n"
+        content += "本篇正文已可阅读。第 09–18 章为设计与源码阅读稿；"
+        content += "对应 mini-binder 扩展仍须实现和实测。\n\n"
+        for label, stem in chapters:
+            content += f"- [{label}](../chapters/{stem}.md)\n"
+        content += f"\n[全书阅读顺序](../reading-path.md#part-{number})与"
+        content += "[任务总表](../plans/task-backlog.md)分别记录正文和实现进度。\n"
         files.append(File.generated(config, f"routes/part-{number}.md", content=content))
     sources = {ROOT / "Makefile"}
     for directory in SOURCE_ROOTS:
@@ -125,6 +141,15 @@ def on_pre_page(page, config, files):
 def on_page_markdown(markdown, page, config, files):
     if page.file.src_uri.startswith("chapters/"):
         lines = markdown.splitlines(keepends=True)
-        lines.insert(1, "\n> **章节状态：开发初稿，尚未正式发布。** 实验与验收边界见本章和阶段报告。\n")
+        chapter = Path(page.file.src_uri).stem.split("-", 1)[0]
+        if chapter.isdigit() and int(chapter) >= 9:
+            notice = (
+                "\n> **章节状态：设计与源码阅读稿，待 review。** "
+                "当前 mini-binder 实现到第 08 章；本章分别标明设计推演、"
+                "可运行示例和源码阅读的证据范围。\n"
+            )
+        else:
+            notice = "\n> **章节状态：开发初稿，尚未正式发布。** 实验与验收边界见本章和阶段报告。\n"
+        lines.insert(1, notice)
         return "".join(lines)
     return markdown

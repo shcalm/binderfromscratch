@@ -6,7 +6,7 @@ import path from "node:path";
 
 const require = createRequire(path.resolve("artifacts/site-browser/package.json"));
 const { chromium } = require("playwright");
-const base = process.env.SITE_PREVIEW_URL || "http://127.0.0.1:8000";
+const base = process.env.SITE_PREVIEW_URL || "http://127.0.0.1:8000/binderfromscratch";
 const executablePath = process.env.SITE_BROWSER_EXECUTABLE;
 const browser = await chromium.launch({ executablePath, headless: true });
 const output = "artifacts/site-browser";
@@ -21,7 +21,13 @@ const routes = ["", "chapters/p01-process/", "chapters/p02-syscalls/",
   "chapters/06-transactions/", "labs/transaction-model/", "design/transactions/",
   "reports/m2-transactions-progress/", "chapters/07-nodes/", "labs/node-model/",
   "design/nodes/", "reports/m3-nodes-progress/", "chapters/08-references/",
-  "labs/reference-model/", "design/references/", "reports/m3-references-progress/"];
+  "labs/reference-model/", "design/references/", "reports/m3-references-progress/",
+  "chapters/09-service-manager/", "chapters/10-thread-model/",
+  "chapters/11-file-descriptors/", "chapters/12-lifetime/",
+  "chapters/13-security/", "chapters/14-oneway/", "chapters/15-concurrency/",
+  "chapters/16-binder-architecture/", "chapters/17-call-trace/",
+  "chapters/18-design-review/", "reports/remaining-chapters-draft/",
+  "routes/part-3/", "routes/part-4/", "routes/part-5/", "routes/part-6/"];
 try {
   for (const viewport of [{ width: 1365, height: 900 }, { width: 390, height: 844 }]) {
     const context = await browser.newContext({ viewport });
@@ -72,7 +78,7 @@ try {
       }));
       assert.ok(dimensions.scroll <= dimensions.width + 1, `${route}: horizontal page overflow`);
       results.push({ viewport, route, diagrams, ...dimensions });
-      if (["", "chapters/03-sync-rpc/", "chapters/04-mmap/", "chapters/05-parcel/", "chapters/06-transactions/", "chapters/07-nodes/", "chapters/08-references/", "labs/"].includes(route)) {
+      if (["", "chapters/03-sync-rpc/", "chapters/04-mmap/", "chapters/05-parcel/", "chapters/06-transactions/", "chapters/07-nodes/", "chapters/08-references/", "labs/"].includes(route) || /^chapters\/(09|1[0-8])-/.test(route)) {
         await page.screenshot({ path: `${output}/${viewport.width}-${route.replaceAll("/", "-") || "index"}.png`, fullPage: false, animations: "disabled" });
       }
     }

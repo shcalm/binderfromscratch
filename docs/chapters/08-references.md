@@ -198,4 +198,4 @@ Android 的 Parcel flatten/unflatten 负责用户态对象表示，驱动负责�
 5. CALL 已排队后原 Handle 被释放并复用，事务靠什么继续固定旧目标？
 6. 对照 binder_translate_handle，解释“传回 owner”为什么不应继续交付一个远程 Handle。
 
-这一章建立的是已知对象的授予与转交。名字发现、多 owner 路由及 Context Manager 尚未实现；不把 grant 旁路当成 ServiceManager。完成本章开发验收后，本轮在这里暂停。
+这一章建立的是已知对象的授予与转交。若客户端独立启动，只知道服务名，不再有父进程通过 pipe 分发地址与 grant，又该怎样获得第一个引用？[第 09 章](09-service-manager.md)从这里设计服务发现、多 owner 路由与 Context Manager。现有代码仍保留本章的单 Server 边界；下一章中的扩展会明确标为设计，不把 grant 旁路当成 ServiceManager。

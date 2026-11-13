@@ -74,13 +74,19 @@ nav:
   - 第三篇 · 对象与服务 · 开发中:
       - 07 Node 对象身份: chapters/07-nodes.md
       - 08 Ref 与对象转交: chapters/08-references.md
-      - 09 章路线与任务: routes/part-3.md
-  - 第四篇 · 线程与生命周期 · 未完成:
-      - 10–12 章路线与任务: routes/part-4.md
-  - 第五篇 · 安全与稳定性 · 未完成:
-      - 13–15 章路线与任务: routes/part-5.md
-  - 第六篇 · 真实 Binder · 未完成:
-      - 16–18 章路线与任务: routes/part-6.md
+      - 09 ServiceManager 服务发现 · 设计稿: chapters/09-service-manager.md
+  - 第四篇 · 线程与生命周期 · 设计稿:
+      - 10 线程与嵌套回调: chapters/10-thread-model.md
+      - 11 文件描述符传递: chapters/11-file-descriptors.md
+      - 12 引用生命周期与死亡通知: chapters/12-lifetime.md
+  - 第五篇 · 安全与稳定性 · 设计稿:
+      - 13 身份与授权: chapters/13-security.md
+      - 14 Oneway 与背压: chapters/14-oneway.md
+      - 15 并发与资源回收: chapters/15-concurrency.md
+  - 第六篇 · 真实 Binder · 阅读稿:
+      - 16 从需求定位内核架构: chapters/16-binder-architecture.md
+      - 17 逐事件追踪一次调用: chapters/17-call-trace.md
+      - 18 设计复盘与 Rust 对照: chapters/18-design-review.md
   - 实验与代码:
       - 实验入口: labs/index.md
       - 进程与 RPC 边界: labs/intro-boundaries.md
@@ -115,5 +121,6 @@ nav:
       - 第 06 章事务实测报告: reports/m2-transactions-progress.md
       - 第 07 章 Node 实测报告: reports/m3-nodes-progress.md
       - 第 08 章 Ref 实测报告: reports/m3-references-progress.md
+      - 第 09–18 章阅读稿与验证: reports/remaining-chapters-draft.md
       - 修订与勘误: reference/changes.md
       - 本地构建与预览: site-guide.md

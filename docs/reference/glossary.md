@@ -1,6 +1,6 @@
 # 术语表
 
-本表固定本书中英文用词，帮助区分 Linux 概念、真实 Binder 协议和教学模型。概念对应不表示 mini-binder 已实现或兼容该机制；当前能力以[任务总表](../plans/task-backlog.md)和对应实验为准。涉及真实实现时遵守[源码阅读基线](android-binder.md)，驱动目前以 Linux v6.6 为阅读基线，AOSP 用户态尚需另行锁定。
+本表固定本书中英文用词，帮助区分 Linux 概念、真实 Binder 协议和教学模型。概念对应不表示 mini-binder 已实现或兼容该机制；当前能力以[任务总表](../plans/task-backlog.md)和对应实验为准。驱动阅读固定 [Linux v6.6](android-binder.md)，用户态另固定 [AOSP Android 14 提交](aosp-userspace.md)，两个阅读输入不构成已验证运行的 Android 组合。
 
 ## 执行与地址空间
 

@@ -17,7 +17,7 @@
 - [全项目任务总表](docs/plans/task-backlog.md)：全部章节、实验设施、可视化、网站和发布任务的统一进度入口。
 - [第一阶段执行计划](docs/plans/phase-01.md)：当前状态、交付物、后续任务。
 - [M0/M1 实现与验收记录](docs/reports/m0-m1-progress.md)：实测结果、环境哈希及未关闭的发布门槛。
-- [P01：从 main.c 到 Linux 进程](docs/chapters/p01-process.md)：观察父子进程中的同址不同值。
+- [P01：从 main.c 到 Linux 进程](docs/chapters/p01-process.md)：让子进程计算加法，观察为什么结果不能靠普通变量自动传回。
 - [P02：从函数调用到系统调用](docs/chapters/p02-syscalls.md)。
 - [P03：第一个 Linux 内核模块](docs/chapters/p03-module.md)。
 - [P04：搭建 Linux 内核实验环境](docs/chapters/p04-environment.md)。
@@ -29,6 +29,7 @@
 - [第 06 章：让一次调用只得到自己的回复](docs/chapters/06-transactions.md)。
 - [第 07 章：同一个方法，究竟调用哪个对象](docs/chapters/07-nodes.md)。
 - [第 08 章：把引用交给另一个进程，而不是复制一个整数](docs/chapters/08-references.md)。
+- [第 09–18 章阅读与 review 入口](docs/reading-path.md)：ServiceManager、线程、FD、生命周期、安全、Oneway、并发，以及真实 Binder 架构、调用链与设计复盘。
 - [Android Binder 源码基线](docs/reference/android-binder.md)：版本、源码入口与对照边界。
 
 ## 运行当前实验
@@ -58,10 +59,10 @@ make vm-runner-test
 
 ## 当前进度
 
-已有全书 22 章路线和 216 项任务分解（93 项勾选），P01–P04、第 01–08 章正文，以及查询设备、同步 RPC、只读映射接收、Parcel、双向事务、多对象 Node、私有 Ref/对象转换和 QEMU 验收路径。[映射](docs/reports/m2-mapping-progress.md)、[Parcel](docs/reports/m2-parcel-progress.md)、[事务](docs/reports/m2-transactions-progress.md)、[Node](docs/reports/m3-nodes-progress.md)和[Ref 报告](docs/reports/m3-references-progress.md)记录增量、实验及边界。正式章节发布、独立初学者复现仍待完成。第 09–18 章和电子书尚未交付。
+已有全书 22 章正文和 216 项实现/验收任务分解（93 项勾选）。P01–P04、第 01–08 章配有已有实验；第 09–18 章为本轮补齐的设计与源码阅读稿，供集中 review。mini-binder 仍实际实现到私有 Ref/对象转换，包括查询设备、同步 RPC、只读映射接收、Parcel、双向事务和多对象 Node。[映射](docs/reports/m2-mapping-progress.md)、[Parcel](docs/reports/m2-parcel-progress.md)、[事务](docs/reports/m2-transactions-progress.md)、[Node](docs/reports/m3-nodes-progress.md)和[Ref 报告](docs/reports/m3-references-progress.md)记录既有实测；[后续正文报告](docs/reports/remaining-chapters-draft.md)记录本轮文档与阅读验证。正式章节发布、后续驱动扩展、独立初学者复现和电子书仍待完成。
 
-按用户要求，本轮在 `dev-c08-20261106` 开发检查点暂停，先供阅读反馈；没有开始第 09 章。
+2026-11-10 按用户要求先把后续正文写完，再统一 review。`dev-c08-20261106` 仍是已有代码与文档的开发检查点；本轮新正文不代表已经实现或实测其中的驱动扩展。
 
-本地 HTML 阅读站点的构建与预览见[网站指南](docs/site-guide.md)，未完成章节通过路线入口标记，代码和正文均为开发版本。
+本地 HTML 阅读站点的构建与预览见[网站指南](docs/site-guide.md)；导航已逐章链接全部正文，页面标明开发初稿或设计阅读稿。
 
 代码位于 `examples/`、`driver/` 和 `userspace/`，验收位于 `tests/`。章节持续演进同一个驱动；已提供[代码版本索引](docs/reference/code-versions.md)，正式阶段发布时采用不可移动的版本标签。
