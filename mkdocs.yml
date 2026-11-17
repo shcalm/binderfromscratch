@@ -89,6 +89,7 @@ nav:
       - 18 设计复盘与 Rust 对照: chapters/18-design-review.md
   - 实验与代码:
       - 实验入口: labs/index.md
+      - QEMU 手动验证 mini-binder: labs/qemu-manual.md
       - 进程与 RPC 边界: labs/intro-boundaries.md
       - 系统调用: labs/syscalls.md
       - 请求队列模型: labs/queue-model.md

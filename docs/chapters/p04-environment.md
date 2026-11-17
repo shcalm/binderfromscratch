@@ -88,6 +88,8 @@ VM_TIMEOUT=180 ACCEL=tcg bash tools/qemu/run.sh
 
 日志分别写入 `artifacts/qemu-tcg.log` 和 `artifacts/qemu-kvm.log`，同模式再次运行会覆盖。正常情况下 init 先卸载模块再关机；宿主 `timeout` 在截止后先发送 TERM，必要时再强制结束 QEMU。客户机失败后重新启动，不继续使用疑似损坏的内核状态。
 
+以上入口由 `/init` 自动运行断言并关机。要进入 shell 亲手加载驱动、运行客户端和服务端，请按[QEMU 手动实验手册](../labs/qemu-manual.md)启动 `rdinit=/bin/sh`；手册区分宿主与虚拟机命令，并列出预期输出、日志和清理步骤。
+
 ## 5. 本机已观察到什么？
 
 2026-11-06 的本机记录使用 Linux 6.6.0、Ubuntu GCC 11.4.0、GNU Make 4.3、BusyBox 1.30.1。以下为查询设备阶段已核查的产物摘要，不是要求每次重建都相同的预期哈希：

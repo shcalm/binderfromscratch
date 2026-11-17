@@ -57,6 +57,8 @@ make vm-runner-test
 
 驱动只加载到 VM，宿主不需要加载模块。KVM 需要可用的 `/dev/kvm`；TCG 通过软件模拟运行。两者都已在本机验证。
 
+要进入虚拟机逐条操作，见 [QEMU 手动实验手册](docs/labs/qemu-manual.md)：启动交互 shell、加载驱动、运行 Server/Client、观察成功与错误、逐项测试和关机。
+
 ## 当前进度
 
 已有全书 22 章正文和 216 项实现/验收任务分解（93 项勾选）。P01–P04、第 01–08 章配有已有实验；第 09–18 章为本轮补齐的设计与源码阅读稿，供集中 review。mini-binder 仍实际实现到私有 Ref/对象转换，包括查询设备、同步 RPC、只读映射接收、Parcel、双向事务和多对象 Node。[映射](docs/reports/m2-mapping-progress.md)、[Parcel](docs/reports/m2-parcel-progress.md)、[事务](docs/reports/m2-transactions-progress.md)、[Node](docs/reports/m3-nodes-progress.md)和[Ref 报告](docs/reports/m3-references-progress.md)记录既有实测；[后续正文报告](docs/reports/remaining-chapters-draft.md)记录本轮文档与阅读验证。正式章节发布、后续驱动扩展、独立初学者复现和电子书仍待完成。

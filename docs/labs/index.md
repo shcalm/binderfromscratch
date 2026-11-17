@@ -1,12 +1,15 @@
 # 实验入口
 
-本页汇集已有实验；准确命令、预期现象、失败判据和清理方法由链接的实验手册与章节维护。所有命令在仓库根目录执行。
+本页汇集已有实验；准确命令、预期现象、失败判据和清理方法由链接的实验手册与章节维护。宿主命令在仓库根目录执行；QEMU 手动手册会明确区分宿主与虚拟机命令。
+
+想亲手进入虚拟机操作驱动，从[在 QEMU 里手动验证 mini-binder](qemu-manual.md)开始：启动 shell、加载模块、运行 Server/Client、观察成功回复与错误、逐项测试并关机。
 
 | 内容 | 前置环境 | 运行入口 | 预期证据与边界 |
 | --- | --- | --- | --- |
 | [P01 / 01 进程与 Socket RPC](intro-boundaries.md) | Linux、C、Make、pthread、Python 3；无需 root | `make test`；手册中的单项程序命令 | 父子私有值、线程 join、协议错误和受控无回复；仅用户态模型 |
 | [P02 系统调用](syscalls.md) | 上述环境；跟踪另需 strace | `make test`；`strace -f` 命令见手册 | 返回值/errno、信号中断、Socket RPC trace；不是 mini-binder 驱动实验 |
 | [P03 / P04 模块与环境](../chapters/p04-environment.md) | 固定内核/BusyBox、构建依赖、QEMU；KVM 可选 | `make kernel`、`make busybox`、`make vm-test` | VM 内装卸、回滚、协议探测及汇总标记；驱动只加载到 VM |
+| [QEMU 手动实验](qemu-manual.md) | 当前开发版 P04 环境；KVM 或 TCG | `make rootfs`，再按手册启动交互 shell | 手动加载设备、四类调用结果、逐项测试及卸载回收 |
 | [02 查询设备](../chapters/02-character-device.md) | P04 环境；使用该章固定提交自己的构建脚本 | 正文中的独立工作树和 VM 命令 | 查询/错误路径及上下文归零；不能混用最新 RPC 镜像 |
 | [03 请求队列模型](queue-model.md) | 用户态构建环境 | `make test`；`./build/request_queue` | 单槽覆盖与 FIFO/回复关联对照；不模拟线程调度 |
 | [03 同步 RPC](../chapters/03-sync-rpc.md) | 当前开发版 P04 环境、QEMU | `make vm-test`；可用时 `make vm-test-kvm` | 并发、退出、中断与资源回收；本章范围为同步 RPC |
