@@ -1164,6 +1164,29 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../../labs/qemu-manual/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    QEMU 手动验证 mini-binder
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../../labs/intro-boundaries/" class="md-nav__link">
         
   
@@ -2034,7 +2057,7 @@
 <blockquote>
 <p>本页为构建时工作树的源代码阅读副本，不是章节发布快照。版本及旧章节重放方式见<a href="../../../../reference/code-versions/">代码版本索引</a>。</p>
 </blockquote>
-<p>仓库路径：<code>tools/qemu/run.sh</code>。源文本 SHA-256：<code>59b4676b9bb8a5981d669a25117931c0a6048980ca4179caa96b3bbd97762aeb</code>。</p>
+<p>仓库路径：<code>tools/qemu/run.sh</code>。源文本 SHA-256：<code>ccc442407128694caacff6eda5bcb75aa84ec095a19b4ffdb25348cadf01ccba</code>。</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="ch">#!/usr/bin/env bash</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="nb">set</span><span class="w"> </span>-euo<span class="w"> </span>pipefail
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="nv">root</span><span class="o">=</span><span class="k">$(</span><span class="nb">cd</span><span class="w"> </span>--<span class="w"> </span><span class="s2">"</span><span class="k">$(</span>dirname<span class="w"> </span>--<span class="w"> </span><span class="s2">"</span><span class="si">${</span><span class="nv">BASH_SOURCE</span><span class="p">[0]</span><span class="si">}</span><span class="s2">"</span><span class="k">)</span><span class="s2">/../.."</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">pwd</span><span class="k">)</span>
@@ -2052,28 +2075,30 @@
 <a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>mkdir<span class="w"> </span>-p<span class="w"> </span><span class="s2">"</span><span class="nv">$root</span><span class="s2">/artifacts"</span>
 <a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a><span class="k">case</span><span class="w"> </span><span class="s2">"</span><span class="nv">$accel</span><span class="s2">"</span><span class="w"> </span><span class="k">in</span><span class="w"> </span>tcg<span class="p">|</span>kvm<span class="o">)</span><span class="w"> </span><span class="p">;;</span><span class="w"> </span>*<span class="o">)</span><span class="w"> </span><span class="nb">echo</span><span class="w"> </span><span class="s1">'ACCEL must be tcg or kvm'</span><span class="w"> </span>&gt;<span class="p">&amp;</span><span class="m">2</span><span class="p">;</span><span class="w"> </span><span class="nb">exit</span><span class="w"> </span><span class="m">2</span><span class="w"> </span><span class="p">;;</span><span class="w"> </span><span class="k">esac</span>
 <a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a><span class="nb">set</span><span class="w"> </span>+e
-<a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>timeout<span class="w"> </span>--signal<span class="o">=</span>TERM<span class="w"> </span>--kill-after<span class="o">=</span><span class="m">5</span><span class="w"> </span><span class="s2">"</span><span class="nv">$limit</span><span class="s2">"</span><span class="w"> </span>qemu-system-x86_64<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a><span class="w">    </span>-machine<span class="w"> </span><span class="s2">"q35,accel=</span><span class="nv">$accel</span><span class="s2">"</span><span class="w"> </span>-cpu<span class="w"> </span>max<span class="w"> </span>-m<span class="w"> </span><span class="m">512</span><span class="w"> </span>-smp<span class="w"> </span><span class="m">2</span><span class="w"> </span>-nographic<span class="w"> </span>-no-reboot<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a><span class="w">    </span>-monitor<span class="w"> </span>none<span class="w"> </span>-nic<span class="w"> </span>none<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a><span class="w">    </span>-kernel<span class="w"> </span><span class="s2">"</span><span class="si">${</span><span class="nv">KERNEL_IMAGE</span><span class="k">:-</span><span class="nv">$root</span><span class="p">/build/kernel/out/arch/x86/boot/bzImage</span><span class="si">}</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a><span class="w">    </span>-initrd<span class="w"> </span><span class="s2">"</span><span class="nv">$root</span><span class="s2">/build/initramfs.cpio.gz"</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a><span class="w">    </span>-append<span class="w"> </span><span class="s2">"console=ttyS0 rdinit=/init panic=1 oops=panic mini_lab=</span><span class="nv">$scenario</span><span class="s2"> mini_run_id=</span><span class="nv">$run_id</span><span class="s2">"</span><span class="w"> </span>&gt;<span class="w"> </span><span class="s2">"</span><span class="nv">$log</span><span class="s2">"</span><span class="w"> </span><span class="m">2</span>&gt;<span class="p">&amp;</span><span class="m">1</span>
-<a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a><span class="nv">status</span><span class="o">=</span><span class="nv">$?</span>
-<a id="__codelineno-0-25" name="__codelineno-0-25" href="#__codelineno-0-25"></a><span class="nb">set</span><span class="w"> </span>-e
-<a id="__codelineno-0-26" name="__codelineno-0-26" href="#__codelineno-0-26"></a>cat<span class="w"> </span><span class="s2">"</span><span class="nv">$log</span><span class="s2">"</span>
-<a id="__codelineno-0-27" name="__codelineno-0-27" href="#__codelineno-0-27"></a><span class="k">if</span><span class="w"> </span><span class="o">[[</span><span class="w"> </span><span class="s2">"</span><span class="nv">$status</span><span class="s2">"</span><span class="w"> </span>-ne<span class="w"> </span><span class="m">0</span><span class="w"> </span><span class="o">]]</span><span class="p">;</span><span class="w"> </span><span class="k">then</span>
-<a id="__codelineno-0-28" name="__codelineno-0-28" href="#__codelineno-0-28"></a><span class="w">    </span><span class="nb">printf</span><span class="w"> </span><span class="s1">'VM execution failed (exit=%s), log=%s\n'</span><span class="w"> </span><span class="s2">"</span><span class="nv">$status</span><span class="s2">"</span><span class="w"> </span><span class="s2">"</span><span class="nv">$log</span><span class="s2">"</span><span class="w"> </span>&gt;<span class="p">&amp;</span><span class="m">2</span>
-<a id="__codelineno-0-29" name="__codelineno-0-29" href="#__codelineno-0-29"></a><span class="w">    </span><span class="nb">exit</span><span class="w"> </span><span class="s2">"</span><span class="nv">$status</span><span class="s2">"</span>
-<a id="__codelineno-0-30" name="__codelineno-0-30" href="#__codelineno-0-30"></a><span class="k">fi</span>
-<a id="__codelineno-0-31" name="__codelineno-0-31" href="#__codelineno-0-31"></a><span class="k">if</span><span class="w"> </span>grep<span class="w"> </span>-Eq<span class="w"> </span><span class="s1">'MINI_LAB_FAIL|Kernel panic|BUG:|WARNING:|Oops:'</span><span class="w"> </span><span class="s2">"</span><span class="nv">$log</span><span class="s2">"</span><span class="p">;</span><span class="w"> </span><span class="k">then</span>
-<a id="__codelineno-0-32" name="__codelineno-0-32" href="#__codelineno-0-32"></a><span class="w">    </span><span class="nb">echo</span><span class="w"> </span><span class="s1">'VM reported an assertion failure or kernel diagnostic'</span><span class="w"> </span>&gt;<span class="p">&amp;</span><span class="m">2</span>
-<a id="__codelineno-0-33" name="__codelineno-0-33" href="#__codelineno-0-33"></a><span class="w">    </span><span class="nb">exit</span><span class="w"> </span><span class="m">1</span>
-<a id="__codelineno-0-34" name="__codelineno-0-34" href="#__codelineno-0-34"></a><span class="k">fi</span>
-<a id="__codelineno-0-35" name="__codelineno-0-35" href="#__codelineno-0-35"></a><span class="k">if</span><span class="w"> </span>!<span class="w"> </span>grep<span class="w"> </span>-q<span class="w"> </span><span class="s1">'^MINI_LAB_PASS'</span><span class="w"> </span><span class="s2">"</span><span class="nv">$log</span><span class="s2">"</span><span class="p">;</span><span class="w"> </span><span class="k">then</span>
-<a id="__codelineno-0-36" name="__codelineno-0-36" href="#__codelineno-0-36"></a><span class="w">    </span><span class="nb">echo</span><span class="w"> </span><span class="s1">'VM did not reach its successful test marker'</span><span class="w"> </span>&gt;<span class="p">&amp;</span><span class="m">2</span>
-<a id="__codelineno-0-37" name="__codelineno-0-37" href="#__codelineno-0-37"></a><span class="w">    </span><span class="nb">exit</span><span class="w"> </span><span class="m">1</span>
-<a id="__codelineno-0-38" name="__codelineno-0-38" href="#__codelineno-0-38"></a><span class="k">fi</span>
-<a id="__codelineno-0-39" name="__codelineno-0-39" href="#__codelineno-0-39"></a><span class="nb">printf</span><span class="w"> </span><span class="s1">'PASS: VM assertions and log checks (%s)\n'</span><span class="w"> </span><span class="s2">"</span><span class="nv">$accel</span><span class="s2">"</span>
+<a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a><span class="c1"># These automated tests need no console input. Detach stdin from the terminal</span>
+<a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a><span class="c1"># so QEMU cannot receive SIGTTIN in the process group created by timeout.</span>
+<a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a>timeout<span class="w"> </span>--signal<span class="o">=</span>TERM<span class="w"> </span>--kill-after<span class="o">=</span><span class="m">5</span><span class="w"> </span><span class="s2">"</span><span class="nv">$limit</span><span class="s2">"</span><span class="w"> </span>qemu-system-x86_64<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a><span class="w">    </span>-machine<span class="w"> </span><span class="s2">"q35,accel=</span><span class="nv">$accel</span><span class="s2">"</span><span class="w"> </span>-cpu<span class="w"> </span>max<span class="w"> </span>-m<span class="w"> </span><span class="m">512</span><span class="w"> </span>-smp<span class="w"> </span><span class="m">2</span><span class="w"> </span>-nographic<span class="w"> </span>-no-reboot<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a><span class="w">    </span>-monitor<span class="w"> </span>none<span class="w"> </span>-nic<span class="w"> </span>none<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a><span class="w">    </span>-kernel<span class="w"> </span><span class="s2">"</span><span class="si">${</span><span class="nv">KERNEL_IMAGE</span><span class="k">:-</span><span class="nv">$root</span><span class="p">/build/kernel/out/arch/x86/boot/bzImage</span><span class="si">}</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a><span class="w">    </span>-initrd<span class="w"> </span><span class="s2">"</span><span class="nv">$root</span><span class="s2">/build/initramfs.cpio.gz"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-0-25" name="__codelineno-0-25" href="#__codelineno-0-25"></a><span class="w">    </span>-append<span class="w"> </span><span class="s2">"console=ttyS0 rdinit=/init panic=1 oops=panic mini_lab=</span><span class="nv">$scenario</span><span class="s2"> mini_run_id=</span><span class="nv">$run_id</span><span class="s2">"</span><span class="w"> </span>&lt;<span class="w"> </span>/dev/null<span class="w"> </span>&gt;<span class="w"> </span><span class="s2">"</span><span class="nv">$log</span><span class="s2">"</span><span class="w"> </span><span class="m">2</span>&gt;<span class="p">&amp;</span><span class="m">1</span>
+<a id="__codelineno-0-26" name="__codelineno-0-26" href="#__codelineno-0-26"></a><span class="nv">status</span><span class="o">=</span><span class="nv">$?</span>
+<a id="__codelineno-0-27" name="__codelineno-0-27" href="#__codelineno-0-27"></a><span class="nb">set</span><span class="w"> </span>-e
+<a id="__codelineno-0-28" name="__codelineno-0-28" href="#__codelineno-0-28"></a>cat<span class="w"> </span><span class="s2">"</span><span class="nv">$log</span><span class="s2">"</span>
+<a id="__codelineno-0-29" name="__codelineno-0-29" href="#__codelineno-0-29"></a><span class="k">if</span><span class="w"> </span><span class="o">[[</span><span class="w"> </span><span class="s2">"</span><span class="nv">$status</span><span class="s2">"</span><span class="w"> </span>-ne<span class="w"> </span><span class="m">0</span><span class="w"> </span><span class="o">]]</span><span class="p">;</span><span class="w"> </span><span class="k">then</span>
+<a id="__codelineno-0-30" name="__codelineno-0-30" href="#__codelineno-0-30"></a><span class="w">    </span><span class="nb">printf</span><span class="w"> </span><span class="s1">'VM execution failed (exit=%s), log=%s\n'</span><span class="w"> </span><span class="s2">"</span><span class="nv">$status</span><span class="s2">"</span><span class="w"> </span><span class="s2">"</span><span class="nv">$log</span><span class="s2">"</span><span class="w"> </span>&gt;<span class="p">&amp;</span><span class="m">2</span>
+<a id="__codelineno-0-31" name="__codelineno-0-31" href="#__codelineno-0-31"></a><span class="w">    </span><span class="nb">exit</span><span class="w"> </span><span class="s2">"</span><span class="nv">$status</span><span class="s2">"</span>
+<a id="__codelineno-0-32" name="__codelineno-0-32" href="#__codelineno-0-32"></a><span class="k">fi</span>
+<a id="__codelineno-0-33" name="__codelineno-0-33" href="#__codelineno-0-33"></a><span class="k">if</span><span class="w"> </span>grep<span class="w"> </span>-Eq<span class="w"> </span><span class="s1">'MINI_LAB_FAIL|Kernel panic|BUG:|WARNING:|Oops:'</span><span class="w"> </span><span class="s2">"</span><span class="nv">$log</span><span class="s2">"</span><span class="p">;</span><span class="w"> </span><span class="k">then</span>
+<a id="__codelineno-0-34" name="__codelineno-0-34" href="#__codelineno-0-34"></a><span class="w">    </span><span class="nb">echo</span><span class="w"> </span><span class="s1">'VM reported an assertion failure or kernel diagnostic'</span><span class="w"> </span>&gt;<span class="p">&amp;</span><span class="m">2</span>
+<a id="__codelineno-0-35" name="__codelineno-0-35" href="#__codelineno-0-35"></a><span class="w">    </span><span class="nb">exit</span><span class="w"> </span><span class="m">1</span>
+<a id="__codelineno-0-36" name="__codelineno-0-36" href="#__codelineno-0-36"></a><span class="k">fi</span>
+<a id="__codelineno-0-37" name="__codelineno-0-37" href="#__codelineno-0-37"></a><span class="k">if</span><span class="w"> </span>!<span class="w"> </span>grep<span class="w"> </span>-q<span class="w"> </span><span class="s1">'^MINI_LAB_PASS'</span><span class="w"> </span><span class="s2">"</span><span class="nv">$log</span><span class="s2">"</span><span class="p">;</span><span class="w"> </span><span class="k">then</span>
+<a id="__codelineno-0-38" name="__codelineno-0-38" href="#__codelineno-0-38"></a><span class="w">    </span><span class="nb">echo</span><span class="w"> </span><span class="s1">'VM did not reach its successful test marker'</span><span class="w"> </span>&gt;<span class="p">&amp;</span><span class="m">2</span>
+<a id="__codelineno-0-39" name="__codelineno-0-39" href="#__codelineno-0-39"></a><span class="w">    </span><span class="nb">exit</span><span class="w"> </span><span class="m">1</span>
+<a id="__codelineno-0-40" name="__codelineno-0-40" href="#__codelineno-0-40"></a><span class="k">fi</span>
+<a id="__codelineno-0-41" name="__codelineno-0-41" href="#__codelineno-0-41"></a><span class="nb">printf</span><span class="w"> </span><span class="s1">'PASS: VM assertions and log checks (%s)\n'</span><span class="w"> </span><span class="s2">"</span><span class="nv">$accel</span><span class="s2">"</span>
 </code></pre></div>
 
 

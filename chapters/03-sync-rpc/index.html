@@ -1359,6 +1359,29 @@
   
   
     <li class="md-nav__item">
+      <a href="../../labs/qemu-manual/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    QEMU 手动验证 mini-binder
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../labs/intro-boundaries/" class="md-nav__link">
         
   
@@ -2677,6 +2700,7 @@
 <p>前章的两个边界现在直接影响进度：fork 子进程即使无权操作继承 fd，也可能因保留引用而延迟最终 release；正在执行的 ioctl 本身也持有文件引用。另一个线程关闭最后一个用户 fd，不一定当场销毁上下文，更不能靠它取消仍阻塞在 RECEIVE 的线程。实验及时关闭继承端点，并通过可控中断或终止线程完成清理，没有独立进程死亡钩子。</p>
 <p>EDEADLK 也只是窄检查：注册 Server 的<strong>同一打开上下文</strong>不能 CALL 自己。同一进程再独立 open 得到另一个上下文，仍能发 CALL；如果该进程只有一条执行线程，它被 CALL 阻塞后无人 RECEIVE，仍可能死锁。本章既不追踪调用链，也不把“同进程”视为一切调用的统一路由单元。</p>
 <h2 id="9-vm">9. 在 VM 内运行真实请求与负例<a class="headerlink" href="#9-vm" title="Permanent link">&para;</a></h2>
+<p>第一次想亲手观察请求如何传回结果，可以先做<a href="../../labs/qemu-manual/">QEMU 手动实验</a>：进入 shell、加载驱动、分别运行 Server 和 Client，区分成功、业务错误和服务退出。下面保留自动验收及其受控负例的入口。</p>
 <p>按 <a href="../p04-environment/">P04</a>准备内核后，在仓库根目录执行：</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>bash<span class="w"> </span>tools/qemu/build-rootfs.sh
 <a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="nv">ACCEL</span><span class="o">=</span>tcg<span class="w"> </span>bash<span class="w"> </span>tools/qemu/run.sh

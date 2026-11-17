@@ -1170,6 +1170,29 @@
   
   
     <li class="md-nav__item">
+      <a href="../qemu-manual/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    QEMU 手动验证 mini-binder
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../intro-boundaries/" class="md-nav__link">
         
   
@@ -2190,6 +2213,7 @@
 <p>回复前还必须检查状态。模型验证三个反例：ID 999 不存在，输出 <code>reason=unknown</code>；101 尚未领取，输出 <code>reason=not_delivered</code>；102 已回复，再次回复输出 <code>reason=duplicate</code>。这些被拒绝的回复不产生 <code>client_result</code>。这也解释为什么一笔记录除了 a/b，还需要标识、归属和状态。</p>
 <p>队列移除已领取记录，只表示它不再等待领取，不能马上销毁记录。模型的全部请求记录由 main 的数组一直保留到退出，<code>reply()</code> 才能找到已交付请求。在真实驱动里，这需要明确的引用和释放责任，见 <a href="../../design/minimal-rpc/">同步 RPC 设计</a>。</p>
 <h2 id="_4">与设备实验的边界<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h2>
+<p>亲手在虚拟机里运行独立 Server/Client 的完整步骤见<a href="../qemu-manual/">QEMU 手动实验</a>，包含交互启动、加载驱动、正常调用、溢出回复和服务退出。</p>
 <p>模型按固定顺序调用函数，没有互斥锁、等待队列、信号、内核用户复制或真实进程退出。它不能证明真实并发中没有丢失唤醒、竞态或内存泄漏，也没有模拟取消与迟到回复的竞争。输入是固定且不会溢出的数值；数值解析和业务溢出由独立设备演示处理。</p>
 <p>模型的容量 2 仅限制等待领取的指针数；已领取记录仍在数组中。驱动的 <code>MB_MAX_REQUESTS</code> 则限制尚未最终回收的整笔请求资源，不能把两个计数直接比较。模型没有请求动态分配，结束时由普通进程退出回收其用户态内存。</p>
 <p>设备演示源码为 <a href="../../source/userspace/add_server.c/">add_server.c</a> 和 <a href="../../source/userspace/add_client.c/">add_client.c</a>，需由 VM 构建入口放入镜像，在 VM 内运行。Server 使用 <code>add_server COUNT</code>，COUNT 范围为 1 到 1000000，注册成功后输出并 flush <code>READY</code>；Client 使用 <code>add_client U32 U32</code>。正常输出 <code>result=...</code>，业务溢出输出 <code>business error:</code> 并返回 2，设备或 ioctl 失败输出 <code>transport error:</code> 并返回 3。Server 每领取并成功回复一笔就计数，达到 COUNT 后关闭设备退出；不要配置超过预计调用数量后再期待它自行结束。</p>

@@ -16,7 +16,7 @@
         <link rel="prev" href="../chapters/18-design-review/">
       
       
-        <link rel="next" href="intro-boundaries/">
+        <link rel="next" href="qemu-manual/">
       
       
       <link rel="icon" href="../assets/images/favicon.png">
@@ -1230,6 +1230,29 @@
   
   
     <li class="md-nav__item">
+      <a href="qemu-manual/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    QEMU 手动验证 mini-binder
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="intro-boundaries/" class="md-nav__link">
         
   
@@ -2126,7 +2149,8 @@
 
 
 <h1 id="_1">实验入口<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h1>
-<p>本页汇集已有实验；准确命令、预期现象、失败判据和清理方法由链接的实验手册与章节维护。所有命令在仓库根目录执行。</p>
+<p>本页汇集已有实验；准确命令、预期现象、失败判据和清理方法由链接的实验手册与章节维护。宿主命令在仓库根目录执行；QEMU 手动手册会明确区分宿主与虚拟机命令。</p>
+<p>想亲手进入虚拟机操作驱动，从<a href="qemu-manual/">在 QEMU 里手动验证 mini-binder</a>开始：启动 shell、加载模块、运行 Server/Client、观察成功回复与错误、逐项测试并关机。</p>
 <table>
 <thead>
 <tr>
@@ -2154,6 +2178,12 @@
 <td>固定内核/BusyBox、构建依赖、QEMU；KVM 可选</td>
 <td><code>make kernel</code>、<code>make busybox</code>、<code>make vm-test</code></td>
 <td>VM 内装卸、回滚、协议探测及汇总标记；驱动只加载到 VM</td>
+</tr>
+<tr>
+<td><a href="qemu-manual/">QEMU 手动实验</a></td>
+<td>当前开发版 P04 环境；KVM 或 TCG</td>
+<td><code>make rootfs</code>，再按手册启动交互 shell</td>
+<td>手动加载设备、四类调用结果、逐项测试及卸载回收</td>
 </tr>
 <tr>
 <td><a href="../chapters/02-character-device/">02 查询设备</a></td>
@@ -2329,13 +2359,13 @@
         
         
           
-          <a href="intro-boundaries/" class="md-footer__link md-footer__link--next" aria-label="下一页: 进程与 RPC 边界">
+          <a href="qemu-manual/" class="md-footer__link md-footer__link--next" aria-label="下一页: QEMU 手动验证 mini-binder">
             <div class="md-footer__title">
               <span class="md-footer__direction">
                 下一页
               </span>
               <div class="md-ellipsis">
-                进程与 RPC 边界
+                QEMU 手动验证 mini-binder
               </div>
             </div>
             <div class="md-footer__button md-icon">
