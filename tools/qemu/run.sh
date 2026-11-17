@@ -15,12 +15,14 @@ log="$root/artifacts/qemu-$log_tag.log"
 mkdir -p "$root/artifacts"
 case "$accel" in tcg|kvm) ;; *) echo 'ACCEL must be tcg or kvm' >&2; exit 2 ;; esac
 set +e
+# These automated tests need no console input. Detach stdin from the terminal
+# so QEMU cannot receive SIGTTIN in the process group created by timeout.
 timeout --signal=TERM --kill-after=5 "$limit" qemu-system-x86_64 \
     -machine "q35,accel=$accel" -cpu max -m 512 -smp 2 -nographic -no-reboot \
     -monitor none -nic none \
     -kernel "${KERNEL_IMAGE:-$root/build/kernel/out/arch/x86/boot/bzImage}" \
     -initrd "$root/build/initramfs.cpio.gz" \
-    -append "console=ttyS0 rdinit=/init panic=1 oops=panic mini_lab=$scenario mini_run_id=$run_id" > "$log" 2>&1
+    -append "console=ttyS0 rdinit=/init panic=1 oops=panic mini_lab=$scenario mini_run_id=$run_id" < /dev/null > "$log" 2>&1
 status=$?
 set -e
 cat "$log"
